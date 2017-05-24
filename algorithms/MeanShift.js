@@ -166,7 +166,10 @@ function MeanShift(X, R, M, GT) {
     this.N = X.length;
 
     this.R = R;
-    this.M = M;
+
+    if (this.M !== Infinity && this.M > 0) {
+        this.M = M;
+    }
 
     if (GT) {
         this.GT = GT;
@@ -303,7 +306,7 @@ MeanShift.prototype.determineKernelRadius = function () {
         if (vectors.length > 0) {
             var dist = [];
             for (var j = 0; j < vectors.length; j++) {
-                dist.push(this.distance(cb[i], vectors[j]));
+                dist.push(this.distance(cb[i], vectors[j], true));
             }
 
             // Collect average distance value from clusters that are not empty
@@ -386,7 +389,7 @@ MeanShift.prototype.getDistancesToDataVectors = function (x, data) {
 
     for (var i = 0; i < data.length; i++) {
         if (!x.equals(data[i])) {
-            distances[i] = this.distance(x, data[i]);
+            distances[i] = this.distance(x, data[i], true);
         } else {
             // Prevent selecting itself as nearest neighbor if the distances is sorted for such purpose
             distances[i] = Infinity;
@@ -426,13 +429,13 @@ MeanShift.prototype.storeFinalSolution = function(codebook, partition, sse) {
 MeanShift.prototype.tuningSolution = function (codebook, partition) {
 
     // Enforce number of desired clusters if needed
-    if (this.M) {
+    if (this.M > 0 && this.M !== Infinity) {
         if (codebook.length < this.M) {
             // Generate new centroids and getting optimal partition
             codebook = this.generateCentroids(codebook, partition, this.M);
         } else if (codebook.length > this.M) {
             // Perform PNN to merge vectors
-            codebook = this.performPNN(codebook, partition, this.M);
+            codebook = this.performPNN(codebook, partition);
         }
     } else {
         // Remove low density clusters
@@ -461,12 +464,13 @@ MeanShift.prototype.removeLowDensityClusters = function (codebook, partition) {
     for (var j = 0; j < codebook.length; j++) {
         sizes[j] = partition.countVal(j);
     }
-    var density = Math.floor(sizes.sum() / sizes.length);
+
+    var density = sizes.sum() / sizes.length;
 
     // Keep only centroids that have high cluster density
     var newCodebook = [];
     for (var k = 0; k < codebook.length; k++) {
-        if (sizes[k] >= density) {
+        if (sizes[k] > density) {
             newCodebook.push(codebook[k]);
         }
     }
@@ -764,7 +768,7 @@ MeanShift.prototype.fillEmptyPosition = function (codebook, q, b, last) {
  * @returns {number}
  */
 MeanShift.prototype.mergeDistortion = function (c1, c2, n1, n2) {
-    return ((n1 * n2) * this.distance(c1, c2)) / (n1 + n2);
+    return ((n1 * n2) * this.distance(c1, c2, true)) / (n1 + n2);
 };
 
 /**
@@ -876,7 +880,7 @@ MeanShift.prototype.findNearestCentroidInChangedList = function (vector, codeboo
 
     for (var i = 0; i < changedList.length; i++) {
         var j = changedList[i];
-        var d = this.distance(vector, codebook[j]);
+        var d = this.distance(vector, codebook[j], true);
         if (d < minDist) {
             minIndex = j;
             minDist = d;
@@ -964,7 +968,7 @@ MeanShift.prototype.findNearestVector = function (x, vectors) {
     var minIdx = 0;
 
     for (var i = 0; i < vectors.length; i++) {
-        var d = this.distance(x, vectors[i]);
+        var d = this.distance(x, vectors[i], true);
         if (d < minDist) {
             minDist = d;
             minIdx = i;
@@ -1031,7 +1035,7 @@ MeanShift.prototype.sumSquaredError = function (codebook, partition) {
     for (var i = 0; i < this.N; i++) {
         var j = partition[i];
         if (codebook[j]) {
-            tse += this.distance(this.X[i], codebook[j]);
+            tse += this.distance(this.X[i], codebook[j], true);
         }
     }
     return tse;

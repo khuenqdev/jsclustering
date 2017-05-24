@@ -13,19 +13,29 @@ var MeanShift = require('./algorithms/MeanShift.js');
 var GeneticAlgorithm = require('./algorithms/GeneticAlgorithm.js');
 var KMeans = require('./algorithms/KMeans.js');
 
-function execute(algorithm, datafile, maxIter, nClusters) {
+/**
+ * Main execution point
+ * @param algorithm
+ * @param datafile
+ * @param params
+ */
+function execute(algorithm, datafile, params) {
 
     var rawData = fs.readFileSync('data/' + datafile + '.txt', 'utf8');
     var rawGroundTruths = fs.readFileSync('data/' + datafile + '-gt.txt', 'utf8');
     var sampleData = parseData(rawData);
     var groundTruths = parseData(rawGroundTruths);
 
-    if (!nClusters) {
-        nClusters = groundTruths.length;
-    }
-
-    if (!maxIter) {
-        maxIter = 100;
+    // Default parameters
+    if (!params) {
+        params = {
+            "no_of_clusters": groundTruths.length,
+            "algorithm_repeat": 100,
+            "ms_radius": 0,
+            "km_max_iter": 100,
+            "ga_population": 45,
+            "ga_max_iter": 50
+        };
     }
 
     var sse = 0;
@@ -33,27 +43,27 @@ function execute(algorithm, datafile, maxIter, nClusters) {
     var ci = 0;
     var success = 0;
     var stopIter = 0;
+    var time = 0;
+    var nClusters = 0;
+
     var bot;
     var algorithmName = "";
+
     var sseArr = [];
     var executionTimes = [];
 
     switch (algorithm) {
         case AL_MS:
-            bot = new MeanShift.MeanShift(sampleData, 0, nClusters, groundTruths);
             algorithmName = "Mean Shift";
             break;
         case AL_GA:
-            bot = new GeneticAlgorithm.GeneticAlgorithm(sampleData, nClusters, 45, 50, groundTruths);
             algorithmName = "Genetic Algorithm";
             break;
         case AL_KM:
             algorithmName = "Fast K-Means";
-            bot = new KMeans.KMeans(sampleData, nClusters, 100, groundTruths);
             break;
         default:
             algorithmName = "Fast K-Means";
-            bot = new KMeans.KMeans(sampleData, nClusters, Infinity, groundTruths);
             break;
     }
 
@@ -63,32 +73,35 @@ function execute(algorithm, datafile, maxIter, nClusters) {
     var itText = algorithmName + " on [" + datafile + "]\n";
     fs.writeFileSync("logs.txt", itText, {'flag': 'a'});
 
-    for (var i = 0; i < maxIter; i++) {
+    for (var i = 0; i < params.algorithm_repeat; i++) {
         var iter = i + 1;
         var hrstart = process.hrtime();
 
+        bot = botFactory(algorithm, sampleData, groundTruths, params);
         bot.execute();
 
         var hrend = process.hrtime(hrstart);
         var secs = hrend[1] / 1000000000;
         var exTimeText = secs + "s";
         executionTimes.push(secs);
+        time += secs;
 
         sse += bot.tse;
         nMSE += bot.nmse;
         ci += bot.ci;
         stopIter += bot.stopIter;
+        nClusters += bot.centroids.length;
         sseArr.push(sse);
 
         if (bot.ci === 0) {
             success++;
         }
 
-        process.stdout.write("Completed " + ((iter * 100) / maxIter) + "%\r");
+        process.stdout.write("Completed " + ((iter * 100) / params.algorithm_repeat) + "%\r");
         itText = "(" + iter + ") SSE: " + bot.tse + "; " +
             "nMSE: " + bot.nmse + "; " +
             "CI: " + bot.ci + "; " +
-            "Stop at iteration: " + bot.stopIter + "; " +
+            "Iteration: " + bot.stopIter + "; " +
             "Time: " + exTimeText + "\n";
         fs.writeFileSync("logs.txt", itText, {'flag': 'a'});
     }
@@ -96,20 +109,22 @@ function execute(algorithm, datafile, maxIter, nClusters) {
 
     console.log("***");
     console.log("--- RESULTS FROM DATA SET [" + datafile + "] ---");
-    console.log("Number of clusters: " + nClusters);
-    console.log("SSE/TSE: " + (sse / maxIter));
-    console.log("nMSE: " + (nMSE / maxIter));
-    console.log("CI: " + (ci / maxIter));
-    console.log("Iterations: " + (stopIter / maxIter));
-    console.log("Success: " + ((success / maxIter) * 100) + "%");
+    console.log("Number of clusters: " + nClusters + "/" + groundTruths.length);
+    console.log("SSE/TSE: " + (sse / params.algorithm_repeat));
+    console.log("nMSE: " + (nMSE / params.algorithm_repeat));
+    console.log("CI: " + (ci / params.algorithm_repeat));
+    console.log("Iterations: " + (stopIter / params.algorithm_repeat));
+    console.log("Execution time: " + (time / params.algorithm_repeat));
+    console.log("Success: " + ((success / params.algorithm_repeat) * 100) + "%");
 
     var resultTexts = "--- RESULTS FROM DATA SET [" + datafile + "] ---\n" +
-        "Number of clusters: " + nClusters + "\n" +
-        "SSE/TSE: " + (sse / maxIter) + "\n" +
-        "nMSE: " + (nMSE / maxIter) + "\n" +
-        "CI: " + (ci / maxIter) + "\n" +
-        "Iterations: " + (stopIter / maxIter) + "\n" +
-        "Success: " + ((success / maxIter) * 100) + "%\n" +
+        "Number of clusters: " + nClusters + "/" + groundTruths.length + "\n" +
+        "SSE/TSE: " + (sse / params.algorithm_repeat) + "\n" +
+        "nMSE: " + (nMSE / params.algorithm_repeat) + "\n" +
+        "CI: " + (ci / params.algorithm_repeat) + "\n" +
+        "Iterations: " + (stopIter / params.algorithm_repeat) + "\n" +
+        "Execution time: " + (time / params.algorithm_repeat) + "\n" +
+        "Success: " + ((success / params.algorithm_repeat) * 100) + "%\n" +
         "SSEs: [" + sseArr.toString() + "]\n" +
         "Times: [" + executionTimes.toString() + "]\n" +
         "--------------------------------------------------\n";
@@ -141,6 +156,27 @@ function parseData(d) {
 }
 
 /**
+ * Factory to create clustering bot
+ * @param algorithm
+ * @param sampleData
+ * @param groundTruths
+ * @param params
+ * @returns {*}
+ */
+function botFactory(algorithm, sampleData, groundTruths, params) {
+    switch (algorithm) {
+        case AL_MS:
+            return new MeanShift.MeanShift(sampleData, params.ms_radius, params.no_of_clusters, groundTruths);
+        case AL_GA:
+            return new GeneticAlgorithm.GeneticAlgorithm(sampleData, params.no_of_clusters, params.ga_population, params.ga_max_iter, groundTruths);
+        case AL_KM:
+            return new KMeans.KMeans(sampleData, params.no_of_clusters, params.km_max_iter, groundTruths);
+        default:
+            return new KMeans.KMeans(sampleData, params.no_of_clusters, Infinity, groundTruths);
+    }
+}
+
+/**
  * Main entry point
  */
 var dataset = [
@@ -159,6 +195,15 @@ var dataset = [
 
 fs.truncateSync("logs.txt");
 fs.truncateSync("results.txt");
+var params = {
+    "no_of_clusters": 0,
+    "algorithm_repeat": 100,
+    "ms_radius": 0,
+    "km_max_iter": 100,
+    "ga_population": 45,
+    "ga_max_iter": 50
+};
+
 for (var j = 0; j < dataset.length; j++) {
-    execute(AL_GA, dataset[j], 2);
+    execute(AL_MS, dataset[j], params);
 }
