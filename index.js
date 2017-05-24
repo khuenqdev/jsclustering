@@ -98,7 +98,8 @@ function execute(algorithm, datafile, params) {
         }
 
         process.stdout.write("Completed " + ((iter * 100) / params.algorithm_repeat) + "%\r");
-        itText = "(" + iter + ") SSE: " + bot.tse + "; " +
+        itText = "(" + iter + ") nClusters:" + bot.centroids.length + "; " +
+            "SSE: " + bot.tse + "; " +
             "nMSE: " + bot.nmse + "; " +
             "CI: " + bot.ci + "; " +
             "Iteration: " + bot.stopIter + "; " +
@@ -109,7 +110,7 @@ function execute(algorithm, datafile, params) {
 
     console.log("***");
     console.log("--- RESULTS FROM DATA SET [" + datafile + "] ---");
-    console.log("Number of clusters: " + nClusters + "/" + groundTruths.length);
+    console.log("Number of clusters: " + (nClusters / params.algorithm_repeat) + "/" + groundTruths.length);
     console.log("SSE/TSE: " + (sse / params.algorithm_repeat));
     console.log("nMSE: " + (nMSE / params.algorithm_repeat));
     console.log("CI: " + (ci / params.algorithm_repeat));
@@ -118,7 +119,7 @@ function execute(algorithm, datafile, params) {
     console.log("Success: " + ((success / params.algorithm_repeat) * 100) + "%");
 
     var resultTexts = "--- RESULTS FROM DATA SET [" + datafile + "] ---\n" +
-        "Number of clusters: " + nClusters + "/" + groundTruths.length + "\n" +
+        "Number of clusters: " + (nClusters / params.algorithm_repeat) + "/" + groundTruths.length + "\n" +
         "SSE/TSE: " + (sse / params.algorithm_repeat) + "\n" +
         "nMSE: " + (nMSE / params.algorithm_repeat) + "\n" +
         "CI: " + (ci / params.algorithm_repeat) + "\n" +
