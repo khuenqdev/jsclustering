@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Clustering Algorithm Demo</title>
+
+    <!-- External libraries -->
+    <script type="text/javascript" src="lib/jquery-3.2.0.min.js"></script>
+    <script type="text/javascript" src="lib/d3.v3.min.js"></script>
+    <script type="text/javascript" src="lib/d3.legend.js"></script>
+
+    <!-- Algorithms -->
+    <script type="text/javascript" src="algorithms/MeanShift.js"></script>
+    <script type="text/javascript" src="algorithms/GeneticAlgorithm.js"></script>
+    <script type="text/javascript" src="algorithms/KMeans.js"></script>
+
+    <!-- Entry point -->
+    <script type="text/javascript" src="main.js"></script>
+
+    <!-- CSS styles -->
+    <link rel="stylesheet" href="styles.css" type="text/css"/>
+</head>
+<body>
+
+<div class="wrapper">
+    <h1>Clustering Algorithm Demo</h1>
+    <fieldset class="field_group">
+        <legend>Data sets</legend>
+
+        <label for="limit_factor">Sub-sampling (%)</label><br/>
+        <input name="limit_factor" id="limit_factor" type="text" value="" placeholder="Enter value from 0 to 100..."/><br/><br/>
+
+        <!-- For loading data sets -->
+        <button name="demo" onclick="demo()">Demo</button>&nbsp;&nbsp;
+        <button name="s1" onclick="loadDataSet('data/s1.txt', 'data/s1-gt.txt')">S1</button>&nbsp;&nbsp;
+        <button name="s2" onclick="loadDataSet('data/s2.txt', 'data/s2-gt.txt')">S2</button>&nbsp;&nbsp;
+        <button name="s3" onclick="loadDataSet('data/s3.txt', 'data/s3-gt.txt')">S3</button>&nbsp;&nbsp;
+        <button name="s4" onclick="loadDataSet('data/s4.txt', 'data/s4-gt.txt')">S4</button>&nbsp;&nbsp;
+        <button name="a1" onclick="loadDataSet('data/a1.txt', 'data/a1-gt.txt')">A1</button>&nbsp;&nbsp;
+        <button name="a2" onclick="loadDataSet('data/a2.txt', 'data/a2-gt.txt')">A2</button>&nbsp;&nbsp;
+        <button name="a3" onclick="loadDataSet('data/a3.txt', 'data/a3-gt.txt')">A3</button>&nbsp;&nbsp;
+        <button name="birch1" onclick="loadDataSet('data/birch1.txt', 'data/birch1-gt.txt')">Birch1</button>&nbsp;&nbsp;
+        <button name="birch2" onclick="loadDataSet('data/birch2.txt', 'data/birch2-gt.txt')">Birch2</button>&nbsp;&nbsp;
+        <button name="dim032" onclick="loadDataSet('data/dim032.txt', 'data/dim032-gt.txt')">Dim032</button>&nbsp;&nbsp;
+        <button name="unbalance" onclick="loadDataSet('data/unbalance.txt', 'data/unbalance-gt.txt')">Unbalance</button>&nbsp;&nbsp;
+        <br/><br/>
+
+        <!-- Algorithm selector -->
+        <label for="algorithm">Clustering Algorithm</label><br/>
+        <select id="algorithm" name="algorithm" onchange="updateParameters()">
+            <option value="0" selected="selected">Fast K-Means</option>
+            <option value="1">Mean Shift</option>
+            <option value="2">Genetic Algorithm</option>
+        </select><br/><br/>
+
+        <!-- Parameters -->
+        <div>
+            <label for="no_of_clusters">Number of clusters</label><br/>
+            <input name="no_of_clusters" id="no_of_clusters" type="text" value=""/>
+        </div>
+
+        <div id="ms_params" style="display:none;">
+            <label for="radius">Kernel Radius (R)</label><br/>
+            <input name="radius" id="radius" type="text" value="" placeholder="Leave blank for automatic"/>
+        </div>
+
+        <div id="ga_params" style="display:none;">
+            <label for="population_size">Population Size (S)</label><br/>
+            <input name="population_size" id="population_size" type="text" value="10"/><br/>
+            <label for="n_iterations">Number of iterations (T)</label><br/>
+            <input name="n_iterations" id="n_iterations" type="text" value="15"/>
+        </div>
+
+        <br/>
+
+        <div>
+            <!-- Execution point -->
+            <button name="execute" onclick="execute()">Execute!</button><br/><br/>
+
+            <!-- Status text -->
+            <b>Status: </b><span id="status"></span><br/><br/>
+        </div>
+
+    </fieldset>
+    <fieldset class="field_group info">
+        <legend>Information about the parameters</legend>
+        <p>
+            The following parameters can be set to cluster data:
+        </p>
+        <ol>
+            <li>
+                <b>Clustering Algorithm:</b> A list of clustering algorithms available for experiment.
+            </li>
+            <li>
+                <b>Number of clusters:</b> Expected number of code vectors / clusters. Can be unset
+                when choosing Mean Shift clustering algorithm.
+            </li>
+            <li>
+                <b>Kernel Radius (R):</b> Radius for the flat kernel of Mean Shift algorithm.
+            </li>
+            <li>
+                <b>Population Size (S):</b> Size of the solution population of Genetic Algorithm.
+            </li>
+            <li>
+                <b>Number of iterations (T):</b> Number of Genetic Algorithm iterations (max number of generations).
+            </li>
+            <li>
+                <b>Sub-sampling (%)*:</b> Set to a floating point value from 0 to 1 to limit
+                the size of the input data set. Example: Data with 1000 vectors and input limit factor
+                is 0.25 will result in only 250 vectors loaded to the memory for clustering.
+            </li>
+        </ol>
+        <small><i>Note:</i> The "Sub-sampling (%)" field should be set due to limited capability of the web
+            browser when processing large amount of data on client size. In order to overcome
+            problem with large data sets, please try running the scripts using a JavaScript engine such as
+            Node.js for higher performance (index.js is a file for running using Node.js).
+        </small>
+    </fieldset>
+
+    <div class="result_group">
+        <h2>Results</h2>
+        <div id="results">
+
+        </div>
+    </div>
+</div>
+<script>
+    var w = 800; // Plot width
+    var h = 600; // Plot height
+    var padding = 100; // Padding of the plot
+    var xScale, yScale; // Scaling factors
+
+    // add SVG graphic element to the document with specified width and height
+    var svg = d3.select("#results")
+        .append("svg")
+        .attr("width", w)
+        .attr("height", h)
+        .attr("class", "clustering_results");
+
+    /**
+     * Update (show/hide) parameter fields
+     */
+    function updateParameters() {
+        var algorithmVal = parseInt(jQuery("#algorithm").val());
+        var msParams = jQuery("#ms_params");
+        var gaParams = jQuery("#ga_params");
+        switch (algorithmVal) {
+            case 0:
+                msParams.hide();
+                gaParams.hide();
+                break;
+            case 1:
+                gaParams.hide();
+                msParams.show();
+                break;
+            case 2:
+                gaParams.show();
+                msParams.hide();
+                break;
+        }
+    }
+
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+svg {
+    margin: -70px 50px;
+}
+
+svg .axis path,
+svg .axis line {
+    fill: none;
+    stroke: black;
+    shape-rendering: crispEdges;
+}
+
+svg .axis text {
+    font-family: sans-serif;
+    font-size: 11px;
+}
+
+.field_group {
+    width: 47%;
+    max-height: 500px;
+    display: inline-block;
+    float: left;
+}
+
+.info {
+    overflow-y: scroll;
+}
+
+.result_group {
+    clear: both;
+    padding: 20px
+}
+
+.legend {
+    font-size: 16px;
+}
+
+.legend rect {
+    fill: white;
+    stroke: black;
+    opacity: 0.8;
+}
+
+.clustering_results {
+    display: inline-block;
+    float: left;
+    margin-right: 50px;
+}
+
+#eva_scores {
+    border: 1px solid black;
+    padding: 10px;
+    font-family: "Calibri", serif;
+    font-size: 20px;
+}
