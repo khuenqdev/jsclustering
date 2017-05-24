@@ -465,7 +465,7 @@ MeanShift.prototype.removeLowDensityClusters = function (codebook, partition) {
         sizes[j] = partition.countVal(j);
     }
 
-    var density = sizes.sum() / sizes.length;
+    var density = Math.ceil(sizes.sum() / sizes.length);
 
     // Keep only centroids that have high cluster density
     var newCodebook = [];
