@@ -166,10 +166,7 @@ function MeanShift(X, R, M, GT) {
     this.N = X.length;
 
     this.R = R;
-
-    if (this.M !== Infinity && this.M > 0) {
-        this.M = M;
-    }
+    this.M = M;
 
     if (GT) {
         this.GT = GT;
@@ -409,7 +406,7 @@ MeanShift.prototype.storeFinalSolution = function(codebook, partition, sse) {
     this.centroids = codebook;
     this.clusterLabels = partition;
     this.tse = sse;
-    this.nmse = this.normalisedMeanSquareError(codebook, partition, this.tse);
+    this.nmse = this.normalisedMeanSquareError(codebook, partition, sse);
 
     if (this.GT && this.GT.length > 0) {
         this.ci = this.centroidIndex(codebook, this.GT);
@@ -429,13 +426,13 @@ MeanShift.prototype.storeFinalSolution = function(codebook, partition, sse) {
 MeanShift.prototype.tuningSolution = function (codebook, partition) {
 
     // Enforce number of desired clusters if needed
-    if (this.M > 0 && this.M !== Infinity) {
+    if (this.M) {
         if (codebook.length < this.M) {
             // Generate new centroids and getting optimal partition
             codebook = this.generateCentroids(codebook, partition, this.M);
         } else if (codebook.length > this.M) {
             // Perform PNN to merge vectors
-            codebook = this.performPNN(codebook, partition);
+            codebook = this.performPNN(codebook, partition, this.M);
         }
     } else {
         // Remove low density clusters
@@ -464,13 +461,12 @@ MeanShift.prototype.removeLowDensityClusters = function (codebook, partition) {
     for (var j = 0; j < codebook.length; j++) {
         sizes[j] = partition.countVal(j);
     }
-
     var density = Math.ceil(sizes.sum() / sizes.length);
 
     // Keep only centroids that have high cluster density
     var newCodebook = [];
     for (var k = 0; k < codebook.length; k++) {
-        if (sizes[k] > density) {
+        if (sizes[k] >= density) {
             newCodebook.push(codebook[k]);
         }
     }
