@@ -31,22 +31,22 @@ function execute(algorithm, datafile, params) {
         params = {};
     }
 
-    if (!params.algorithm_repeat) {
+    if (typeof params.algorithm_repeat === "undefined") {
         params.algorithm_repeat = 100;
     }
-    if (!params.no_of_clusters) {
+    if (typeof params.no_of_clusters === "undefined") {
         params.no_of_clusters = groundTruths.length;
     }
-    if (!params.ms_radius) {
+    if (typeof params.ms_radius === "undefined") {
         params.ms_radius = 0;
     }
-    if (!params.km_max_iter) {
+    if (typeof params.km_max_iter === "undefined") {
         params.km_max_iter = 100;
     }
-    if (!params.ga_population) {
+    if (typeof params.ga_population === "undefined") {
         params.ga_population = 45;
     }
-    if (!params.ga_max_iter) {
+    if (typeof params.ga_max_iter === "undefined") {
         params.ga_max_iter = 50;
     }
 
@@ -192,15 +192,15 @@ function botFactory(algorithm, sampleData, groundTruths, params) {
  * Main entry point
  */
 var dataset = [
-    ["dim032", {"algorithm_repeat": 100}],
-    ["unbalance", {"algorithm_repeat": 100}],
-    ["s1", {"algorithm_repeat": 100}],
-    ["s2", {"algorithm_repeat": 100}],
-    ["s3", {"algorithm_repeat": 100}],
-    ["s4", {"algorithm_repeat": 100}],
-    ["a1", {"algorithm_repeat": 100}],
-    ["a2", {"algorithm_repeat": 100}],
-    ["a3", {"algorithm_repeat": 100}],
+    ["dim032", {"algorithm_repeat": 2}],
+    ["unbalance", {"algorithm_repeat": 2}],
+    ["s1", {"algorithm_repeat": 2}],
+    ["s2", {"algorithm_repeat": 2}],
+    ["s3", {"algorithm_repeat": 2}],
+    ["s4", {"algorithm_repeat": 2}],
+    ["a1", {"algorithm_repeat": 2}],
+    ["a2", {"algorithm_repeat": 2}],
+    ["a3", {"algorithm_repeat": 2}],
     ["birch1", {"algorithm_repeat": 1}],
     ["birch2", {"algorithm_repeat": 1}]
 ];
@@ -209,5 +209,5 @@ fs.truncateSync("logs.txt");
 fs.truncateSync("results.txt");
 
 for (var j = 0; j < dataset.length; j++) {
-    execute(AL_MS, dataset[j][0], dataset[j][1]);
+    execute(AL_GA, dataset[j][0], dataset[j][1]);
 }

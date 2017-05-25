@@ -8,7 +8,7 @@
  * crossover for vector quantization", Pattern Recognition
  * Letters, 21 (1), 61-68, 2000"
  *
- * Updated 18-May-2017
+ * Updated 26-May-2017
  * Nguyen Quang Khue
  * khuenq.devmail@gmail.com / quangn@student.uef.fi
  *
@@ -95,13 +95,13 @@ GeneticAlgorithm.prototype.X = [];
  * Desired number of code vectors / clusters
  * @type {number}
  */
-GeneticAlgorithm.prototype.M = 0;
+GeneticAlgorithm.prototype.M = Infinity;
 
 /**
  * Solution population size
  * @type {number}
  */
-GeneticAlgorithm.prototype.S = 2;
+GeneticAlgorithm.prototype.S = 45;
 
 /**
  * Number of iterations (maximum number of generations)
@@ -116,112 +116,107 @@ GeneticAlgorithm.prototype.T = 50;
 GeneticAlgorithm.prototype.GT = [];
 
 /**
+ * Number of K-Means iterations
+ * @type {number}
+ */
+GeneticAlgorithm.prototype.maxKMeansIterations = 2;
+
+/**
+ * Size of the cross set
+ * @type {number}
+ */
+GeneticAlgorithm.prototype.crossSetSize = 0;
+
+/**
  * Solution population
  * @type {Array}
  */
 GeneticAlgorithm.prototype.solutions = [];
 
 /**
- * Size of the crossover set
- * @type {number}
- */
-GeneticAlgorithm.prototype.crossSetSize = 0;
-
-/**
- * Maximum number of K-Means iterations
- * used for fine tuning the solution
- * @type {number}
- */
-GeneticAlgorithm.prototype.maxKMeansIterations = 2;
-
-/**
- * Best solution's codebook
+ * Best codebook
  * @type {Array}
  */
 GeneticAlgorithm.prototype.centroids = [];
 
 /**
- * Best solution's partition mappings
+ * Best partition
  * @type {Array}
  */
 GeneticAlgorithm.prototype.clusterLabels = [];
 
 /**
- * Best solution SSE score
+ * Iteration when the algorithm stop
  * @type {Number}
  */
-GeneticAlgorithm.prototype.tse = Infinity;
+GeneticAlgorithm.prototype.stopIter = Infinity;
 
 /**
- * Normalised Mean Square Error
+ * Normalised Mean Squared Error
  * @type {Number}
  */
 GeneticAlgorithm.prototype.nmse = Infinity;
 
 /**
- * Centroid Index score
+ * Centroid Index (if applicable)
  * @type {Number}
  */
 GeneticAlgorithm.prototype.ci = Infinity;
 
 /**
- * The iteration where the algorithm stops
- * when no improvements achieved
- * @type {number}
+ * Total Squared Error / Sum Squared Error
+ * @type {Number}
  */
-GeneticAlgorithm.prototype.stopIter = 0;
+GeneticAlgorithm.prototype.tse = Infinity;
 
 /**
- * Algorithm class constructor
- * @param X Input data set
- * @param M Desired number of code vectors / clusters
- * @param S Solution population size
- * @param T Number of iterations (maximum number of solution generations)
- * @param GT Ground truth centroids (if applicable)
+ * Constructor
+ * @param X Input data
+ * @param M Number of code vectors / clusters
+ * @param S Population size
+ * @param T Max iteration
+ * @param GT Ground truth codebook (if applicable)
  * @constructor
  */
 function GeneticAlgorithm(X, M, S, T, GT) {
-
-    if (!X || !M) {
-        throw "Either the data set or the number of clusters is missing from parameter list!";
+    if (!X || !M || !S || !T) {
+        throw "Invalid parameters";
     }
 
     this.X = X;
     this.M = M;
+    this.S = S;
+    this.T = T;
 
-    // Calculate data size beforehand
-    this.N = this.X.length;
-
-    if (S) {
-        this.S = S;
-    }
-
-    if (T) {
-        this.T = T;
-    }
-
-    if (GT) {
+    if (typeof GT !== "undefined") {
         this.GT = GT;
     }
 }
 
 /**
- * Main execution entry point
+ * Main execution point
  */
 GeneticAlgorithm.prototype.execute = function () {
-    this.computeCrossSetSize();
-    this.generateInitialSolutions();
-    this.sortSolutions();
+    // Algorithm initialization
+    this.init();
 
-    for (var t = 0; t < this.T; t++) {
-        this.generateNewSolutions();
-        this.sortSolutions();
+    // Main iterations
+    for (var i = 0; i < this.T; i++) {
+        this.stopIter = i + 1;
+
+        // Generate new solutions
+        this.solutions = this.generateNewSolutions(this.X, this.M, this.S, this.solutions);
+
+        // Sort the solution by TSE score from low to high
+        this.sortSolutions(this.solutions);
+
+        // Get the best solution
         var bestSolution = this.solutions[0];
-        this.stopIter = t + 1;
-        if (bestSolution.sse < this.tse) {
+
+        // Store best solution
+        if (bestSolution.tse < this.tse) {
             this.storeBestSolution(bestSolution);
-        } else if (bestSolution.sse === this.tse) {
-            // Stop at first time the solution fails to improve
+        } else if (bestSolution.tse === this.tse) {
             break;
         }
     }
@@ -230,838 +225,624 @@ GeneticAlgorithm.prototype.execute = function () {
 /********************************************************************
  * INITIALIZATION                                                   *
  ********************************************************************/
-
 /**
- * Generate initial solutions for the algorithm
+ * Get initial solutions and configure the algorithm
  */
-GeneticAlgorithm.prototype.generateInitialSolutions = function () {
-    for (var s = 0; s < this.S; s++) {
-        var codebook = this.generateRandomCodebook();
-        var partition = this.getOptimalPartition(codebook);
-        var sse = this.sumSquaredError(codebook, partition);
-        this.solutions[s] = {
-            "codebook": codebook,
-            "partition": partition,
-            "sse": sse
-        }
-    }
+GeneticAlgorithm.prototype.init = function () {
+    this.computeCrossSetSize(this.S);
+    this.generateInitialSolutions(this.X, this.S, this.M, this.solutions);
+    this.sortSolutions(this.solutions);
 };
 
 /**
- * Generate a random codebook
- * @returns {Array}
+ * Compute cross set size
+ * @param S
  */
-GeneticAlgorithm.prototype.generateRandomCodebook = function () {
-    var indices = Math.randIntList(0, this.N - 1, this.M, undefined, true);
-    return this.X.getElementsByIndices(indices);
-};
+GeneticAlgorithm.prototype.computeCrossSetSize = function (S) {
+    var s = 0;
 
-/**
- * Get optimal partition mapping for a particular codebook
- * @param codebook
- * @returns {Array}
- */
-GeneticAlgorithm.prototype.getOptimalPartition = function (codebook) {
-    var partition = [];
-    for (var i = 0; i < this.N; i++) {
-        partition[i] = this.findNearestVector(this.X[i], codebook);
-    }
-    return partition;
-};
-
-/********************************************************************
- * MAIN ROUTINES                                                    *
- ********************************************************************/
-
-/**
- * Generate new solutions from the current solution
- * population
- */
-GeneticAlgorithm.prototype.generateNewSolutions = function () {
-
-    var a = 0, b = 0, newSolutions = [];
-
-    for (var s = 0; s < this.S; s++) {
-        // Select a pair of solutions from the population
-        var pairIndices = this.selectPairForCrossover(a, b);
-        a = pairIndices.a;
-        b = pairIndices.b;
-
-        // Cross the selected solutions
-        var crossedSolution = this.crossSolutions(a, b);
-        var newCodebook = crossedSolution.codebook;
-        var newPartition = crossedSolution.partition;
-
-        // Mutate the new solution codebook (unnecessary)
-        //newCodebook = this.mutateSolution(newCodebook);
-
-        // Fine-tune the solution using K-Means
-        newSolutions[s] = this.iterateByKMeans(newCodebook, newPartition);
-    }
-
-    this.solutions = newSolutions;
-};
-
-/**
- * Cross two parent solutions to form a new solution
- * @param a
- * @param b
- * @returns {{codebook, partition}}
- */
-GeneticAlgorithm.prototype.crossSolutions = function (a, b) {
-    // Extract the two parent solutions
-    var solutionA = this.solutions[a];
-    var solutionB = this.solutions[b];
-
-    // Get codebook and partition of first solution
-    var ca = solutionA.codebook;
-    var pa = solutionA.partition;
-
-    // Get codebook and partition of second solution
-    var cb = solutionB.codebook;
-    var pb = solutionB.partition;
-
-    // 1. Combine centroids of the 2 solutions
-    var newCodebook = this.combineCentroids(ca, cb);
-
-    // 2. Combine partitions of the 2 solutions
-    var newPartition = this.combinePartitions(ca, pa, cb, pb);
-
-    // 3. Generate optimal codebook and partition mapping from the combined codebook and partition
-    newCodebook = this.updateCentroids(newCodebook, newPartition);
-
-    // 4. Remove empty clusters
-    var updated = this.removeEmptyClusters(newCodebook, newPartition);
-
-    // 5. Perform PNN to refine the solution
-    var refined = this.performPNN(updated.codebook, updated.partition);
-    newCodebook = refined.codebook;
-    newPartition = refined.partition;
-
-    return {
-        "codebook": newCodebook,
-        "partition": newPartition
-    }
-};
-
-/**
- * Remove empty clusters
- * @param codebook
- * @param partition
- */
-GeneticAlgorithm.prototype.removeEmptyClusters = function (codebook, partition) {
-
-    for (var j = 0; j < codebook.length; j++) {
-        var size = partition.countVal(j);
-        if (size === 0 && codebook.length > this.M) {
-            var last = codebook.length - 1;
-            codebook[j] = codebook[last].slice(0, codebook[last].length);
-            partition = this.joinPartitions(partition, j, last);
-            codebook.length--;
-        }
-    }
-
-    return {
-        "codebook": codebook,
-        "partition": partition
-    }
-};
-
-/**
- * Update centroids
- * @param codebook
- * @param partition
- * @returns {Array}
- */
-GeneticAlgorithm.prototype.updateCentroids = function (codebook, partition) {
-
-    var sum = [];
-    var count = [];
-    for (var i = 0; i < this.N; i++) {
-        var j = partition[i];
-        if (typeof sum[j] === "undefined") {
-            sum[j] = this.X[i].slice(0, this.X[i].length).fill(0);
-        }
-        sum[j] = sum[j].addArray(this.X[i].slice(0, this.X[i].length));
-        if (typeof count[j] === "undefined") {
-            count[j] = 0;
-        }
-        count[j] += 1;
-    }
-
-    for (var k = 0; k < codebook.length; k++) {
-        if (typeof sum[k] !== "undefined" && count[k] > 0) {
-            codebook[k] = sum[k].divideBy(count[k]);
-        }
-    }
-
-    return codebook;
-};
-
-/**
- * Combine centroids from parent solutions
- * @param ca
- * @param cb
- * @returns {Array.<T>|string}
- */
-GeneticAlgorithm.prototype.combineCentroids = function (ca, cb) {
-    var newCodebook = ca.slice(0, ca.length);
-    return newCodebook.concat(cb);
-};
-
-/**
- * Combine partitions from parent solutions
- * @param ca
- * @param pa
- * @param cb
- * @param pb
- * @returns {Array}
- */
-GeneticAlgorithm.prototype.combinePartitions = function (ca, pa, cb, pb) {
-
-    var newPartition = [];
-
-    for (var i = 0; i < this.N; i++) {
-
-        // Get cluster label from each partition's corresponding vector
-        var j1 = pa[i];
-        var j2 = pb[i];
-
-        // Obtain the centroid from the 2 solutions' codebooks
-        var c1 = ca[j1];
-        var c2 = cb[j2];
-
-        // Calculate distances between current vector and the two centroids
-        var d1 = this.distance(this.X[i], c1, true);
-        var d2 = this.distance(this.X[i], c2, true);
-
-        // Compare between the 2 distances to select matching cluster label
-        if (d1 < d2) {
-            newPartition[i] = j1;
-        } else {
-            newPartition[i] = j2 + (ca.length - 1); // Use index of the combined centroid codebook
-        }
-
-    }
-
-    return newPartition;
-};
-
-/**
- * Mutate the current solution by selecting random
- * vector from input data as a codebook's centroid
- * @param codebook
- */
-GeneticAlgorithm.prototype.mutateSolution = function (codebook) {
-    var i = Math.randInt(0, this.X.length - 1);
-    var j = Math.randInt(0, codebook.length - 1);
-    codebook[j] = this.X[i].slice(0, this.X[i].length);
-    return codebook;
-};
-
-/**
- * Select a pair of solutions for crossover
- * @param a
- * @param b
- * @returns {{a: *, b: *}}
- */
-GeneticAlgorithm.prototype.selectPairForCrossover = function (a, b) {
-
-    b++;
-
-    if (b === this.crossSetSize) {
-        a++;
-        b = a + 1;
-    }
-    return {
-        "a": a,
-        "b": b
-    }
-
-};
-
-/**
- * Calculate the cross solution set's size
- */
-GeneticAlgorithm.prototype.computeCrossSetSize = function () {
-
-    var s = 1;
-
-    while ((s * (s + 1) / 2) < this.S) {
+    while (s * (s + 1) / 2 < S) {
         s++;
     }
 
     this.crossSetSize = s;
 };
 
+/**
+ * Generate initial solutions
+ * @param X
+ * @param S
+ * @param M
+ * @param solutions
+ */
+GeneticAlgorithm.prototype.generateInitialSolutions = function (X, S, M, solutions) {
+    for (var i = 0; i < S; i++) {
+        var C = this.generateRandomCodebook(X, M);
+        var P = this.generateOptimalPartition(X, C);
+        var tse = this.sumSquaredError(X, C, P);
+        solutions[i] = {
+            "codebook": C,
+            "partition": P,
+            "tse": tse
+        };
+    }
+};
+
+/**
+ * Generate random code book
+ * @param X
+ * @param M
+ * @returns {Array}
+ */
+GeneticAlgorithm.prototype.generateRandomCodebook = function (X, M) {
+    // Get random vector indices
+    var indices = Math.randIntList(0, X.length - 1, M, undefined, true);
+
+    // Collect random vectors
+    var C = [];
+    for (var i = 0; i < indices.length; i++) {
+        C[i] = X[indices[i]];
+        C[i].size = 0;
+    }
+
+    return C;
+};
+
+/**
+ * Generate optimal partition from codebook
+ * @param X
+ * @param C
+ * @returns {Array}
+ */
+GeneticAlgorithm.prototype.generateOptimalPartition = function (X, C) {
+    var N = X.length;
+    var P = [];
+
+    for (var i = 0; i < N; i++) {
+        var j = this.findNearestVector(X[i], C);
+        P[i] = j;
+        C[j].size = C[j].size + 1;
+    }
+
+    return P;
+};
+
+/**
+ * Find nearest vector from a set of vectors
+ * @param x
+ * @param V
+ * @returns {number}
+ */
+GeneticAlgorithm.prototype.findNearestVector = function (x, V) {
+    var minDist = Infinity;
+    var minIdx = 0;
+    var len = V.length;
+
+    for (var i = 0; i < len; i++) {
+        var d = this.distance(x, V[i], true);
+        if (d < minDist) {
+            minDist = d;
+            minIdx = i;
+        }
+    }
+
+    return minIdx;
+};
+
+/********************************************************************
+ * MAIN ROUTINES                                                    *
+ ********************************************************************/
+/**
+ * Generate new solutions from current solution population
+ * @param X
+ * @param M
+ * @param S
+ * @param solutions
+ * @returns {Array}
+ */
+GeneticAlgorithm.prototype.generateNewSolutions = function (X, M, S, solutions) {
+    var a = 0, b = 0;
+    var newSolutions = [];
+
+    for (var i = 0; i < S; i++) {
+        var pair = this.selectNextPair(a, b);
+        a = pair[0];
+        b = pair[1];
+
+        var S1 = solutions[a];
+        var S2 = solutions[b];
+
+        var Ca = S1.codebook;
+        var Pa = S1.partition;
+
+        var Cb = S2.codebook;
+        var Pb = S2.partition;
+
+        var crossedSolution = this.crossSolutions(X, M, Ca, Pa, Cb, Pb);
+
+        newSolutions[i] = this.iterateByKMeans(X, M, crossedSolution.codebook, crossedSolution.partition);
+    }
+
+    return newSolutions;
+};
+
+/**
+ * Cross the solution using PNN
+ * @param X
+ * @param M
+ * @param C1
+ * @param P1
+ * @param C2
+ * @param P2
+ * @returns {{codebook: (Array.<T>|string), partition: Array}}
+ */
+GeneticAlgorithm.prototype.crossSolutions = function (X, M, C1, P1, C2, P2) {
+    var CNew = this.combineCentroids(C1, C2);
+    var PNew = this.combinePartitions(X, P1, P2, C1, C2);
+    CNew = this.updateCentroids(X, CNew, PNew);
+
+    this.removeEmptyClusters(X, CNew, PNew, M);
+    this.performPNN(X, M, CNew, PNew);
+
+    return {
+        "codebook": CNew,
+        "partition": PNew
+    }
+};
+
+/**
+ * Remove empty clusters
+ * @param X
+ * @param C
+ * @param P
+ * @param M
+ */
+GeneticAlgorithm.prototype.removeEmptyClusters = function (X, C, P, M) {
+    for (var i = 0; i < C.length; i++) {
+        if (C[i].size === 0 && C.length > M) {
+            var last = C.length - 1;
+            var tmpSize = C[i].size;
+            C[i] = C[last].clone();
+            C[i].size = tmpSize;
+            this.joinPartitions(X, P, C, i, last);
+            C.length--;
+        }
+    }
+};
+
+/**
+ * Join two partitions together
+ * @param X
+ * @param P
+ * @param C
+ * @param a
+ * @param b
+ */
+GeneticAlgorithm.prototype.joinPartitions = function (X, P, C, a, b) {
+    var N = X.length;
+    for (var i = 0; i < N; i++) {
+        if (P[i] === b) {
+            P[i] = a;
+        }
+    }
+    C[a].size = C[a].size + C[b].size;
+};
+
+/**
+ * Update centroids
+ * @param X
+ * @param C
+ * @param P
+ * @returns {*}
+ */
+GeneticAlgorithm.prototype.updateCentroids = function (X, C, P) {
+    var sum = [], count = [], N = X.length, K = C.length;
+
+    for (var i = 0; i < N; i++) {
+        var j = P[i];
+
+        if (typeof sum[j] === "undefined") {
+            sum[j] = X[i].clone().fill(0);
+        }
+
+        sum[j] = sum[j].addArray(X[i]);
+
+        if (typeof count[j] === "undefined") {
+            count[j] = 0;
+        }
+
+        count[j]++;
+    }
+
+    for (var k = 0; k < K; k++) {
+        if (typeof sum[k] !== "undefined" && typeof count[k] !== "undefined" && count[k] > 0) {
+            C[k] = sum[k].divideBy(count[k]);
+            C[k].size = count[k];
+        } else {
+            C[k].size = 0;
+        }
+    }
+
+    return C;
+};
+
+/**
+ * Combine two codebooks from parent solutions
+ * @param C1
+ * @param C2
+ * @returns {Array.<T>|Buffer|string}
+ */
+GeneticAlgorithm.prototype.combineCentroids = function (C1, C2) {
+    return C1.concat(C2);
+};
+
+/**
+ * Combine two partitions from parent solutions
+ * @param X
+ * @param P1
+ * @param P2
+ * @param C1
+ * @param C2
+ * @returns {Array}
+ */
+GeneticAlgorithm.prototype.combinePartitions = function (X, P1, P2, C1, C2) {
+    var N = X.length, m = C1.length - 1;
+    var PNew = [];
+    for (var i = 0; i < N; i++) {
+        var p1 = P1[i];
+        var p2 = P2[i];
+        var d1 = this.distance(X[i], C1[p1], true);
+        var d2 = this.distance(X[i], C2[p2], true);
+        if (d1 < d2) {
+            PNew[i] = p1;
+        } else {
+            PNew[i] = p2 + m;
+        }
+    }
+    return PNew;
+};
+
+/**
+ * Select next pair of solutions for crossing
+ * @param a
+ * @param b
+ * @returns {[*,*]}
+ */
+GeneticAlgorithm.prototype.selectNextPair = function (a, b) {
+    b++;
+
+    if (b === this.crossSetSize) {
+        a++;
+        b = a + 1;
+    }
+
+    return [a, b];
+};
+
 /********************************************************************
  * K-MEANS ROUTINES                                                 *
  ********************************************************************/
-
 /**
- * K-Means clustering
- * @param codebook
- * @param partition
- * @returns {{codebook: *, partition: *, sse: number}}
+ * Iterate by K-Means to fine tune the solution
+ * @param X
+ * @param M
+ * @param C
+ * @param P
+ * @returns {{codebook: *, partition: *, tse: number}}
  */
-GeneticAlgorithm.prototype.iterateByKMeans = function (codebook, partition) {
-
-    var active = []; // List for determining active code vectors
-    var changedList = [-1]; // List for tracking code vector changes with a dummy index
+GeneticAlgorithm.prototype.iterateByKMeans = function (X, M, C, P) {
+    var active = [];
+    var changedList = [-1];
 
     var iterations = 0;
 
     while (iterations < this.maxKMeansIterations && changedList.length > 0) {
-
-        var prevCodebook = codebook.slice(0, codebook.length); // Take a snapshot of last codebook
-
-        codebook = this.calculateCentroids(prevCodebook, partition);
-
-        // Detect changes and active centroids
-        var changes = this.detectChangedCodeVectors(prevCodebook, codebook, active, changedList);
-        changedList = changes.changedList;
-        active = changes.activeList;
-
-        partition = this.reducedSearchPartition(codebook, partition, active, changedList);
-
+        var CPrev = C.clone();
+        C = this.calculateCentroids(X, C, P);
+        this.detectChangedCodeVectors(CPrev, C, active, changedList);
+        P = this.reducedSearchPartition(X, C, P, active, changedList);
         iterations++;
-
-    }
-
-    // Output the fine-tuned solution
-    var sse = this.sumSquaredError(codebook, partition);
-    return {
-        "codebook": codebook,
-        "partition": partition,
-        "sse": sse
-    }
-};
-
-/**
- * Reduce the search partition by updating cluster labels
- * of each input data vector to the nearest code vector (centroid)
- * @param codebook
- * @param partition
- * @param active
- * @param changedList
- * @returns {*}
- */
-GeneticAlgorithm.prototype.reducedSearchPartition = function (codebook, partition, active, changedList) {
-
-    // For each input data vector
-    for (var i = 0; i < this.N; i++) {
-
-        if (changedList.length > 1) {
-            var j = partition[i]; // Get its current cluster label in the partition mapping
-
-            if (active[j]) { // If the code vector corresponding to the cluster is active
-                // Find and assign the current vector to the cluster of the nearest code vector
-                partition[i] = this.findNearestVector(this.X[i], codebook);
-            } else {
-                // Otherwise, find and assign the current vector to the cluster of the nearest code vector in the active code vector list
-                partition[i] = this.findNearestCentroidInChangedList(this.X[i], codebook, changedList);
-            }
-        } else {
-            partition[i] = this.findNearestVector(this.X[i], codebook);
-        }
-
-    }
-
-    return partition;
-
-};
-
-/**
- * Find the nearest index of code vector (centroid) that is
- * in the changed list (active code vector)
- * @param vector
- * @param codebook
- * @param changedList
- * @returns {number}
- */
-GeneticAlgorithm.prototype.findNearestCentroidInChangedList = function (vector, codebook, changedList) {
-
-    var minDist = Infinity;
-    var minIndex = 0;
-    var l = changedList.length;
-
-    for (var i = 0; i < l; i++) {
-        var j = changedList[i];
-        var d = this.distance(vector, codebook[j], true);
-        if (d < minDist) {
-            minIndex = j;
-            minDist = d;
-        }
-    }
-
-    return minIndex;
-
-};
-
-/**
- * Detect active code vector (centroids) in the code book
- * and track changes
- * @param prevCodebook
- * @param newCodebook
- * @param active
- * @param changedList
- */
-GeneticAlgorithm.prototype.detectChangedCodeVectors = function (prevCodebook, newCodebook, active, changedList) {
-
-    changedList.length = 0; // Make the changed list empty
-
-    // For each code vector of the previous code book
-    for (var j = 0; j < prevCodebook.length; j++) {
-
-        active[j] = false;
-
-        // If the previous code vector and the new code vector are not the same centroid
-        if (!newCodebook[j].equals(prevCodebook[j])) {
-            if (!changedList.hasElement(j)) {
-                changedList.push(j); // Put the changed code vector index to the changed list
-            }
-            active[j] = true; // Mark it as active
-        }
-
     }
 
     return {
-        "changedList": changedList,
-        "activeList": active
-    };
-
+        "codebook": C,
+        "partition": P,
+        "tse": this.sumSquaredError(X, C, P)
+    }
 };
 
 /**
- * Calculate partition centroids and uses them as code vectors
- * @param codebook
- * @param partition
+ * Calculate K-Means centroids
+ * @param X
+ * @param C
+ * @param P
  * @returns {Array}
  */
-GeneticAlgorithm.prototype.calculateCentroids = function (codebook, partition) {
+GeneticAlgorithm.prototype.calculateCentroids = function (X, C, P) {
     var newCodebook = [];
+    var K = C.length;
 
-    for (var i = 0; i < codebook.length; i++) {
+    for (var i = 0; i < K; i++) {
 
-        var indices = partition.allIndexOf(i);
-        var vectors = this.X.getElementsByIndices(indices);
+        var indices = P.allIndexOf(i);
+        var vectors = X.getElementsByIndices(indices);
 
         // Default to old centroid
-        var centroid = codebook[i];
+        var centroid = C[i];
 
         if (vectors.length > 0) { // If the list of vectors is not empty
             centroid = this.calculateMeanVector(vectors);
         }
 
         newCodebook[i] = centroid;
+        newCodebook[i].size = 0;
     }
 
     return newCodebook;
 };
 
-/********************************************************************
- * PNN ROUTINES                                                     *
- ********************************************************************/
-
 /**
- * Perform pair-wise nearest neighbor algorithm
- * @param codebook
- * @param partition
+ * Detect code vectors changes
+ * @param CPrev
+ * @param CNew
+ * @param active
+ * @param changedList
  */
-GeneticAlgorithm.prototype.performPNN = function (codebook, partition) {
-    var q = []; // Nearest neighbor pointers
+GeneticAlgorithm.prototype.detectChangedCodeVectors = function (CPrev, CNew, active, changedList) {
+    changedList.length = 0;
+    var K = CPrev.length;
 
-    // For each centroid in the codebook
-    for (var j = 0; j < codebook.length; j++) {
-        // Find its nearest neighbor
-        q[j] = this.findNearestNeighbor(codebook, partition, j);
-    }
-
-    // Repeat until getting desired codebook size
-    while (codebook.length > this.M) {
-
-        // Find the index of centroid with distance to another centroid to be the smallest
-        var a = this.findMinimumDistance(codebook, q);
-
-        // Get the index of the nearest centroid of that centroid
-        var b = q[a].nearest;
-
-        // Merge the two vectors together
-        var mergedResults = this.mergeVectors(codebook, partition, q, a, b);
-        codebook = mergedResults.codebook;
-        partition = mergedResults.partition;
-        q = mergedResults.pointers;
-
-        // Update nearest neighbor pointers
-        q = this.updatePointers(codebook, partition, q);
-
-    }
-
-    return {
-        "codebook": codebook,
-        "partition": partition
-    }
-};
-
-/**
- * Find the nearest centroid in a codebook from current centroid
- * @param codebook
- * @param partition
- * @param a
- * @returns {{nearest: number, distance: Number, recalculate: boolean}}
- */
-GeneticAlgorithm.prototype.findNearestNeighbor = function (codebook, partition, a) {
-
-    var q = {
-        "nearest": 0,
-        "distance": Infinity,
-        "recalculate": false
-    };
-
-    for (var j = 0; j < codebook.length; j++) {
-
-        // Get the size of each cluster by counting the number of vectors assigned to it
-        var n1 = partition.countVal(a) + 1;
-        var n2 = partition.countVal(j) + 1;
-
-        var d = this.mergeDistortion(codebook[a], codebook[j], n1, n2);
-
-        if (a !== j && d < q.distance) {
-            q.nearest = j;
-            q.distance = d;
+    for (var j = 0; j < K; j++) {
+        active[j] = false;
+        if (!CPrev[j].equals(CNew[j])) {
+            if (changedList.indexOf(j) === -1) {
+                changedList.push(j);
+            }
+            active[j] = true;
         }
-
     }
-
-    return q;
 
 };
 
 /**
- * Find the index of centroid that has distance to
- * its nearest centroid to be the smallest
- * @param codebook
- * @param q
- * @returns {number}
- */
-GeneticAlgorithm.prototype.findMinimumDistance = function (codebook, q) {
-
-    var minDist = Infinity;
-    var minIndex = 0;
-
-    for (var j = 0; j < codebook.length; j++) {
-
-        if (q[j].distance < minDist) {
-            minIndex = j;
-            minDist = q[j].distance;
-        }
-
-    }
-
-    return minIndex;
-
-};
-
-/**
- * Merge 2 centroid vectors
- * @param codebook
- * @param partition
- * @param q
- * @param a
- * @param b
- */
-GeneticAlgorithm.prototype.mergeVectors = function (codebook, partition, q, a, b) {
-
-    if (a > b) {
-        // Swap a & b so that a is smaller index
-        var tmp = a;
-        a = b;
-        b = tmp;
-    }
-
-    // Get last index of the codebook
-    var last = codebook.length - 1;
-
-    // Mark clusters for recalculation
-    q = this.markClustersForRecalculation(codebook, q, a, b);
-
-    // Create a new centroid vector as weighted average vector of centroid a & b
-    var n1 = partition.countVal(a) + 1;
-    var n2 = partition.countVal(b) + 1;
-    codebook[a] = this.createCentroid(codebook[a], codebook[b], n1, n2);
-
-    // Join the partitions of b to a
-    partition = this.joinPartitions(partition, a, b);
-
-    // Fill empty position with the last centroid
-    var filledData = this.fillEmptyPosition(codebook, q, b, last);
-    codebook = filledData.codebook;
-    q = filledData.pointers;
-
-    // Decrease codebook size
-    codebook.length--;
-
-    return {
-        "codebook": codebook,
-        "partition": partition,
-        "pointers": q
-    };
-
-};
-
-/**
- * Update nearest neighbor pointers
- * @param codebook
- * @param partition
- * @param q
+ * Reduced search partition
+ * @param X
+ * @param C
+ * @param P
+ * @param active
+ * @param changedList
  * @returns {*}
  */
-GeneticAlgorithm.prototype.updatePointers = function (codebook, partition, q) {
+GeneticAlgorithm.prototype.reducedSearchPartition = function (X, C, P, active, changedList) {
+    var N = X.length, k = -1;
 
-    // If any of the nearest neighbor pointers needs to be recalculated
-    for (var j = 0; j < codebook.length; j++) {
-        if (q[j].recalculate === true) {
-            q[j] = this.findNearestNeighbor(codebook, partition, j);
-            q[j].recalculate = false;
-        }
-    }
+    for (var i = 0; i < N; i++) {
 
-    return q;
-};
+        if (changedList.length > 1) {
 
-/**
- * Mark the clusters that need recalculation by
- * determining whether the cluster nearest neighbor
- * is vector a or b
- * @param codebook
- * @param q
- * @param a
- * @param b
- */
-GeneticAlgorithm.prototype.markClustersForRecalculation = function (codebook, q, a, b) {
-
-    for (var j = 0; j < codebook.length; j++) {
-        q[j].recalculate = q[j].nearest === a || q[j].nearest === b;
-    }
-
-    return q;
-};
-
-/**
- * Join 2 partitions a and b so that all vectors will be in a
- * and cluster b will be empty. Pointers are updated
- * @param partition
- * @param a
- * @param b
- */
-GeneticAlgorithm.prototype.joinPartitions = function (partition, a, b) {
-
-    for (var i = 0; i < this.N; i++) {
-        if (partition[i] === b) {
-            partition[i] = a;
-        }
-    }
-
-    return partition;
-};
-
-/**
- * Fill empty positions of the nearest neighbor mapping
- * and the codebook
- * @param codebook
- * @param q
- * @param b
- * @param last
- */
-GeneticAlgorithm.prototype.fillEmptyPosition = function (codebook, q, b, last) {
-
-    if (b !== last) {
-
-        codebook[b] = codebook[last];
-        q[b] = q[last];
-
-        // Update pointers to point all nearest point to b
-        for (var j = 0; j < codebook.length; j++) {
-            if (q[j].nearest === last) {
-                q[j].nearest = b;
+            var j = P[i];
+            if (active[j]) {
+                k = this.findNearestVector(X[i], C);
+            } else {
+                k = this.findNearestInSet(X[i], C, changedList);
             }
+
+        } else {
+
+            k = this.findNearestVector(X[i], C);
+
         }
 
+        P[i] = k;
+        C[k].size += 1;
     }
 
-    return {
-        "codebook": codebook,
-        "pointers": q
-    };
-
+    return P;
 };
 
 /**
- * Calculate the merge cost of the cluster using equation (4)
- * in the paper
- * @param c1 the first centroid vector
- * @param c2 the second centroid vector
- * @param n1
- * @param n2
+ * Find nearest vectors in the changed list
+ * @param vector
+ * @param C
+ * @param changedList
  * @returns {number}
  */
-GeneticAlgorithm.prototype.mergeDistortion = function (c1, c2, n1, n2) {
-    return ((n1 * n2) * this.distance(c1, c2, true)) / (n1 + n2);
-};
-
-/**
- * Create a centroid that is the weighted average of the two
- * centroid vectors
- * @param c1 first centroid vector
- * @param c2 second centroid vector
- * @param n1 cluster size of first centroid
- * @param n2 cluster size of second centroid
- * @returns {Array}
- */
-GeneticAlgorithm.prototype.createCentroid = function (c1, c2, n1, n2) {
-    c1 = c1.multiplyBy(n1);
-    c2 = c2.multiplyBy(n2);
-    return c1.addArray(c2).divideBy(n1 + n2);
-};
-
-/********************************************************************
- * LOW-LEVEL ROUTINES                                               *
- ********************************************************************/
-
-/**
- * Store a copy of the best solution with min SSE
- */
-GeneticAlgorithm.prototype.storeBestSolution = function (bestSolution) {
-    this.centroids = bestSolution.codebook.slice(0, bestSolution.codebook.length);
-    this.clusterLabels = bestSolution.partition.slice(0, bestSolution.partition.length);
-    this.tse = bestSolution.sse;
-    this.nmse = this.normalisedMeanSquareError(bestSolution.codebook, bestSolution.partition, this.tse);
-    if (this.GT && this.GT.length > 0) {
-        this.ci = this.centroidIndex(bestSolution.codebook, this.GT);
-    }
-};
-
-/**
- * Get the nearest vector to an input vector
- * @param x
- * @param vectors
- * @returns {number}
- */
-GeneticAlgorithm.prototype.findNearestVector = function (x, vectors) {
-
+GeneticAlgorithm.prototype.findNearestInSet = function (vector, C, changedList) {
     var minDist = Infinity;
     var minIdx = 0;
+    var len = changedList.length;
 
-    for (var i = 0; i < vectors.length; i++) {
-
-        var d = this.distance(x, vectors[i], true);
+    for (var i = 0; i < len; i++) {
+        var j = changedList[i];
+        var d = this.distance(vector, C[j], true);
         if (d < minDist) {
+            minIdx = j;
             minDist = d;
-            minIdx = i;
         }
-
     }
 
     return minIdx;
 };
 
-/**
- * Calculate euclidean distance between two vectors
- * @param x1
- * @param x2
- * @param squared whether we calculate squared distance
- * @returns {*}
- */
-GeneticAlgorithm.prototype.distance = function (x1, x2, squared) {
-    if (x1.length !== x2.length) {
-        throw "Vectors must be of the same length!";
-    }
-
-    // Initialize distance variable
-    var d = 0;
-
-    var n = x1.length;
-
-    // Calculate distance between each feature
-    for (var i = 0; i < n; i++) {
-        d += Math.pow(x1[i] - x2[i], 2);
-    }
-
-    if (squared) {
-        return d;
-    }
-
-    return Math.sqrt(d);
-};
-
-/**
- * Calculate the mean/average vector from a set of vectors
- * @param vectors
- */
-GeneticAlgorithm.prototype.calculateMeanVector = function (vectors) {
-    var sumVector = vectors[0];
-    var nVectors = vectors.length;
-    for (var i = 1; i < vectors.length; i++) {
-        sumVector = sumVector.addArray(vectors[i]);
-    }
-    return sumVector.divideBy(nVectors);
-};
-
-/**
- * Sort solutions based on their SSE
- * Smallest SSE value means better solution
- */
-GeneticAlgorithm.prototype.sortSolutions = function () {
-    this.solutions.sort(function (a, b) {
-        return a.sse > b.sse;
-    });
-};
-
 /********************************************************************
- * Objective function                                               *
+ * PNN ROUTINES                                                     *
  ********************************************************************/
+/**
+ * Perform PNN to reduce number of code vectors
+ * @param X
+ * @param M
+ * @param C
+ * @param P
+ */
+GeneticAlgorithm.prototype.performPNN = function (X, M, C, P) {
+    var Q = [], K = C.length;
+
+    for (var i = 0; i < K; i++) {
+        Q[i] = this.findNearestNeighbor(C, i);
+    }
+
+    while (C.length > M) {
+        var a = this.findMinimumDistance(C, Q);
+        var b = Q[a].nearest;
+        this.mergeVectors(X, C, P, Q, a, b);
+        this.updatePointers(C, Q);
+    }
+};
 
 /**
- * Calculate Sum of Squared Error / Total Squared Error
- * @param codebook
- * @param partition
- * @returns {number}
+ * Update pointers
+ * @param C
+ * @param Q
  */
-GeneticAlgorithm.prototype.sumSquaredError = function (codebook, partition) {
-    var tse = 0;
-    for (var i = 0; i < this.N; i++) {
-        var j = partition[i];
-        if (codebook[j]) {
-            tse += this.distance(this.X[i], codebook[j], true);
+GeneticAlgorithm.prototype.updatePointers = function (C, Q) {
+    var K = C.length;
+    for (var i = 0; i < K; i++) {
+        if (Q[i].recalculate) {
+            Q[i] = this.findNearestNeighbor(C, i);
+            Q[i].recalculate = true;
         }
     }
-    return tse;
 };
 
 /**
- * Calculate Normalised Mean Square Error
- * @param codebook
- * @param partition
- * @param tse
+ * Merge two vectors together
+ * @param X
+ * @param C
+ * @param P
+ * @param Q
+ * @param a
+ * @param b
+ */
+GeneticAlgorithm.prototype.mergeVectors = function (X, C, P, Q, a, b) {
+    // Swap
+    if (a > b) {
+        var tmp = a;
+        a = b;
+        b = tmp;
+    }
+    var last = C.length - 1;
+    this.markClustersForRecalculation(C, Q, a, b);
+    var tmpSize = C[a].size;
+    C[a] = this.createCentroid(C[a], C[b]);
+    C[a].size = tmpSize;
+    this.joinPartitions(X, P, C, a, b);
+    this.fillEmptyPosition(C, Q, b, last);
+    C.length--;
+};
+
+/**
+ * Fill empty positions
+ * @param C
+ * @param Q
+ * @param b
+ * @param last
+ */
+GeneticAlgorithm.prototype.fillEmptyPosition = function (C, Q, b, last) {
+    if (b !== last) {
+        C[b] = C[last].clone();
+        C[b].size = C[last].size;
+        Q[b] = {
+            "nearest": Q[last].nearest,
+            "distance": Q[last].distance,
+            "recalculate": Q[last].recalculate
+        };
+
+        var K = C.length;
+        for (var i = 0; i < K; i++) {
+            if (Q[i].nearest === last) {
+                Q[i].nearest = b;
+            }
+        }
+    }
+};
+
+/**
+ * Mark clusters for recalculation
+ * @param C
+ * @param Q
+ * @param a
+ * @param b
+ */
+GeneticAlgorithm.prototype.markClustersForRecalculation = function (C, Q, a, b) {
+    var len = C.length;
+    for (var i = 0; i < len; i++) {
+        Q[i].recalculate = (Q[i].nearest === a || Q[i].nearest === b);
+    }
+};
+
+/**
+ * Create new weighted centroids from two centroids
+ * @param C1
+ * @param C2
+ */
+GeneticAlgorithm.prototype.createCentroid = function (C1, C2) {
+    var n1 = C1.size + 1;
+    var n2 = C2.size + 1;
+    var C1New = C1.clone().multiplyBy(n1);
+    var C2New = C2.clone().multiplyBy(n2);
+    return C1New.addArray(C2New).divideBy(n1 + n2);
+};
+
+/**
+ * Find minimum distance inside distance mapping
+ * @param C
+ * @param Q
  * @returns {number}
  */
-GeneticAlgorithm.prototype.normalisedMeanSquareError = function (codebook, partition, tse) {
-
-    if (!tse) {
-        tse = this.sumSquaredError(codebook, partition);
+GeneticAlgorithm.prototype.findMinimumDistance = function (C, Q) {
+    var minDist = Infinity;
+    var minIdx = 0;
+    var K = C.length;
+    for (var i = 0; i < K; i++) {
+        if (Q[i].distance < minDist) {
+            minIdx = i;
+            minDist = Q[i].distance
+        }
     }
-
-    var n = this.N;
-    var d = codebook[0].length;
-
-    return tse / (n * d);
-
+    return minIdx;
 };
+
+/**
+ * Find nearest neighbor of vector a
+ * @param C
+ * @param a
+ * @returns {{nearest: number, distance: Number, recalculate: boolean}}
+ */
+GeneticAlgorithm.prototype.findNearestNeighbor = function (C, a) {
+    var q = {
+        "nearest": 0,
+        "distance": Infinity,
+        "recalculate": false
+    };
+    var K = C.length;
+    for (var i = 0; i < K; i++) {
+        var d = this.mergeDistortion(C[a], C[i]);
+        if (a !== i && d < q.distance) {
+            q.nearest = i;
+            q.distance = d;
+        }
+    }
+    return q;
+};
+
+/**
+ * Calculate merge distortion between two code vectors
+ * @param C1
+ * @param C2
+ * @returns {number}
+ */
+GeneticAlgorithm.prototype.mergeDistortion = function (C1, C2) {
+    var n1 = C1.size + 1;
+    var n2 = C2.size + 1;
+    var factor = (n1 * n2) / (n1 + n2);
+    var distance = this.distance(C1, C2, true);
+    return factor * distance;
+};
+
 
 /********************************************************************
  * Centroid index calculation                                       *
  ********************************************************************/
-
 /**
  * Calculate one-way dissimilarity score between
  * two sets of data
@@ -1116,9 +897,150 @@ GeneticAlgorithm.prototype.centroidIndex = function (s1, s2) {
 };
 
 /********************************************************************
+ * LOW-LEVEL ROUTINES                                               *
+ ********************************************************************/
+/**
+ * Calculate euclidean distance between two vectors
+ * @param x1
+ * @param x2
+ * @param squared whether we calculate squared distance
+ * @returns {*}
+ */
+GeneticAlgorithm.prototype.distance = function (x1, x2, squared) {
+    if (x1.length !== x2.length) {
+        throw "Vectors must be of the same length!";
+    }
+
+    // Initialize distance variable
+    var d = 0;
+
+    var n = x1.length;
+
+    // Calculate distance between each feature
+    for (var i = 0; i < n; i++) {
+        d += Math.pow(x1[i] - x2[i], 2);
+    }
+
+    if (squared) {
+        return d;
+    }
+
+    return Math.sqrt(d);
+};
+/**
+ * Calculate the mean/average vector from a set of vectors
+ * @param vectors
+ */
+GeneticAlgorithm.prototype.calculateMeanVector = function (vectors) {
+    var sumVector = vectors[0];
+    var nVectors = vectors.length;
+    for (var i = 1; i < vectors.length; i++) {
+        sumVector = sumVector.addArray(vectors[i]);
+    }
+    return sumVector.divideBy(nVectors);
+};
+/**
+ * Sort solutions based on their SSE
+ * Smallest SSE value means better solution
+ */
+GeneticAlgorithm.prototype.sortSolutions = function (solutions) {
+    solutions.sort(function (a, b) {
+        return a.tse - b.tse;
+    });
+};
+/**
+ * Store the best solution
+ * @param bestSolution
+ */
+GeneticAlgorithm.prototype.storeBestSolution = function (bestSolution) {
+    this.centroids = bestSolution.codebook.clone();
+    this.clusterLabels = bestSolution.partition.clone();
+    this.tse = bestSolution.tse;
+    this.nmse = this.normalisedMeanSquareError(this.X, this.centroids, this.clusterLabels, this.tse);
+    if (this.GT && this.GT.length > 0) {
+        this.ci = this.centroidIndex(this.centroids, this.GT);
+    }
+};
+/**
+ * Print codebook structure as text
+ * @param C
+ * @returns {string}
+ */
+GeneticAlgorithm.prototype.printCodebook = function (C) {
+    var text = "";
+    var len = C.length;
+    for (var i = 0; i < len; i++) {
+        text += "[" + C[i].toString() + "]{" + C[i].size + "}";
+        if (i < len - 1) {
+            text += ", ";
+        }
+    }
+    return text;
+};
+/**
+ * Print partition as text
+ * @param P
+ * @returns {string}
+ */
+GeneticAlgorithm.prototype.printPartition = function (P) {
+    var text = "[";
+    var len = P.length;
+    for (var i = 0; i < len; i++) {
+        text += P[i];
+        if (i < len - 1) {
+            text += ", ";
+        }
+    }
+    text += "]";
+    return text;
+};
+
+/********************************************************************
+ * Objective function                                               *
+ ********************************************************************/
+/**
+ * Calculate Sum of Squared Error / Total Squared Error
+ * @param X
+ * @param C
+ * @param P
+ * @returns {number}
+ */
+GeneticAlgorithm.prototype.sumSquaredError = function (X, C, P) {
+    var tse = 0;
+    var N = X.length;
+    for (var i = 0; i < N; i++) {
+        var j = P[i];
+        if (C[j]) {
+            tse += this.distance(X[i], C[j], true);
+        }
+    }
+    return tse;
+};
+
+/**
+ * Calculate Normalised Mean Square Error
+ * @param X
+ * @param C
+ * @param P
+ * @param tse
+ * @returns {number}
+ */
+GeneticAlgorithm.prototype.normalisedMeanSquareError = function (X, C, P, tse) {
+
+    if (!tse) {
+        tse = this.sumSquaredError(C, P);
+    }
+
+    var n = X.length;
+    var d = C[0].length;
+
+    return tse / (n * d);
+
+};
+
+/********************************************************************
  * SUPPORT FUNCTIONS ADDED TO JAVASCRIPT ARRAY OBJECT LIBRARY       *
  ********************************************************************/
-
 /**
  * Find all indices of an element in an array
  * @param value
@@ -1159,36 +1081,32 @@ Array.prototype.getElementsByIndices = function (indices) {
 };
 
 /**
- * Count how many times a value occurs in
- * an array
- * @param x
- * @returns {Number}
+ * Function to compare between arrays
+ * @param array
+ * @param strict
+ * @returns {boolean}
  */
-Array.prototype.countVal = function (x) {
-    var el = this.filter(function (val) {
-        return val === x;
-    });
-    return el.length;
-};
+Array.prototype.equals = function (array, strict) {
+    if (!array)
+        return false;
 
-/**
- * Add elements of another array of the same length
- * to current array one-by-one
- * @param arr
- */
-Array.prototype.addArray = function (arr) {
+    if (arguments.length === 1)
+        strict = true;
 
-    var len = this.length;
+    if (this.length !== array.length)
+        return false;
 
-    if (len !== arr.length) {
-        throw "Input array must have the same length with current array!";
+    for (var i = 0; i < this.length; i++) {
+        if (this[i] instanceof Array && array[i] instanceof Array) {
+            if (!this[i].equals(array[i], strict))
+                return false;
+        } else if (strict && this[i] !== array[i]) {
+            return false;
+        } else if (!strict) {
+            return this.sort().equals(array.sort(), true);
+        }
     }
-
-    for (var i = 0; i < len; i++) {
-        this[i] = this[i] + arr[i];
-    }
-
-    return this;
+    return true;
 };
 
 /**
@@ -1236,25 +1154,23 @@ Array.prototype.multiplyBy = function (val) {
 };
 
 /**
- * Check whether array contains an element
- * @param element
- * @returns {boolean}
+ * Add elements of another array of the same length
+ * to current array one-by-one
+ * @param arr
  */
-Array.prototype.hasElement = function (element) {
+Array.prototype.addArray = function (arr) {
 
-    for (var i = 0; i < this.length; i++) {
-        if (this[i] instanceof Array) {
-            if (this[i].equals(element)) {
-                return true;
-            }
-        } else {
-            if (this[i] === element) {
-                return true;
-            }
-        }
+    var len = this.length;
+
+    if (len !== arr.length) {
+        throw "Input array must have the same length with current array!";
     }
 
-    return false;
+    for (var i = 0; i < len; i++) {
+        this[i] = this[i] + arr[i];
+    }
+
+    return this;
 };
 
 /**
@@ -1273,38 +1189,16 @@ Array.prototype.sum = function () {
 };
 
 /**
- * Function to compare between arrays
- * @param array
- * @param strict
- * @returns {boolean}
+ * Clone an array
+ * @returns {Array.<*>}
  */
-Array.prototype.equals = function (array, strict) {
-    if (!array)
-        return false;
-
-    if (arguments.length === 1)
-        strict = true;
-
-    if (this.length !== array.length)
-        return false;
-
-    for (var i = 0; i < this.length; i++) {
-        if (this[i] instanceof Array && array[i] instanceof Array) {
-            if (!this[i].equals(array[i], strict))
-                return false;
-        } else if (strict && this[i] !== array[i]) {
-            return false;
-        } else if (!strict) {
-            return this.sort().equals(array.sort(), true);
-        }
-    }
-    return true;
+Array.prototype.clone = function () {
+    return this.slice(0, this.length);
 };
 
 /********************************************************************
  * SUPPORT FUNCTIONS ADDED TO JAVASCRIPT MATHEMATICS LIBRARY        *
  ********************************************************************/
-
 /**
  * Get a random integer between a range
  * @param min
@@ -1323,7 +1217,6 @@ Math.randInt = function (min, max, exclude) {
     }
     return result;
 };
-
 /**
  * Get a list of random integers
  * @param min
@@ -1338,7 +1231,7 @@ Math.randIntList = function (min, max, length, exclude, unique) {
     while (rand.length < length) {
         var randNum = Math.randInt(min, max, exclude);
         if (unique) {
-            if (!rand.hasElement(randNum)) {
+            if (rand.indexOf(randNum) === -1) {
                 rand.push(randNum);
             }
         } else {
