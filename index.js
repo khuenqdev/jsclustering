@@ -28,14 +28,26 @@ function execute(algorithm, datafile, params) {
 
     // Default parameters
     if (!params) {
-        params = {
-            "no_of_clusters": groundTruths.length,
-            "algorithm_repeat": 100,
-            "ms_radius": 0,
-            "km_max_iter": 100,
-            "ga_population": 45,
-            "ga_max_iter": 50
-        };
+        params = {};
+    }
+
+    if (!params.algorithm_repeat) {
+        params.algorithm_repeat = 100;
+    }
+    if (!params.no_of_clusters) {
+        params.no_of_clusters = groundTruths.length;
+    }
+    if (!params.ms_radius) {
+        params.ms_radius = 0;
+    }
+    if (!params.km_max_iter) {
+        params.km_max_iter = 100;
+    }
+    if (!params.ga_population) {
+        params.ga_population = 45;
+    }
+    if (!params.ga_max_iter) {
+        params.ga_max_iter = 50;
     }
 
     var sse = 0;
@@ -81,10 +93,9 @@ function execute(algorithm, datafile, params) {
         bot.execute();
 
         var hrend = process.hrtime(hrstart);
-        var secs = hrend[1] / 1000000000;
-        var exTimeText = secs + "s";
-        executionTimes.push(secs);
-        time += secs;
+        var exTimeText = hrend[0] + "s";
+        executionTimes.push(hrend[0]);
+        time += hrend[0];
 
         sse += bot.tse;
         nMSE += bot.nmse;
@@ -181,30 +192,22 @@ function botFactory(algorithm, sampleData, groundTruths, params) {
  * Main entry point
  */
 var dataset = [
-    "dim032",
-    "unbalance",
-    "s1",
-    "s2",
-    "s3",
-    "s4",
-    "a1",
-    "a2",
-    "a3",
-    "birch1",
-    "birch2"
+    ["dim032", {"algorithm_repeat": 100}],
+    ["unbalance", {"algorithm_repeat": 100}],
+    ["s1", {"algorithm_repeat": 100}],
+    ["s2", {"algorithm_repeat": 100}],
+    ["s3", {"algorithm_repeat": 100}],
+    ["s4", {"algorithm_repeat": 100}],
+    ["a1", {"algorithm_repeat": 100}],
+    ["a2", {"algorithm_repeat": 100}],
+    ["a3", {"algorithm_repeat": 100}],
+    ["birch1", {"algorithm_repeat": 1}],
+    ["birch2", {"algorithm_repeat": 1}]
 ];
 
 fs.truncateSync("logs.txt");
 fs.truncateSync("results.txt");
-var params = {
-    "no_of_clusters": 0,
-    "algorithm_repeat": 100,
-    "ms_radius": 0,
-    "km_max_iter": 100,
-    "ga_population": 45,
-    "ga_max_iter": 50
-};
 
 for (var j = 0; j < dataset.length; j++) {
-    execute(AL_MS, dataset[j], params);
+    execute(AL_MS, dataset[j][0], dataset[j][1]);
 }

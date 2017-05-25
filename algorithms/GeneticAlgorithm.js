@@ -209,6 +209,7 @@ function GeneticAlgorithm(X, M, S, T, GT) {
  * Main execution entry point
  */
 GeneticAlgorithm.prototype.execute = function () {
+    this.computeCrossSetSize();
     this.generateInitialSolutions();
     this.sortSolutions();
 
@@ -216,11 +217,11 @@ GeneticAlgorithm.prototype.execute = function () {
         this.generateNewSolutions();
         this.sortSolutions();
         var bestSolution = this.solutions[0];
+        this.stopIter = t + 1;
         if (bestSolution.sse < this.tse) {
             this.storeBestSolution(bestSolution);
-        } else {
+        } else if (bestSolution.sse === this.tse) {
             // Stop at first time the solution fails to improve
-            this.stopIter = t + 1;
             break;
         }
     }
@@ -278,9 +279,7 @@ GeneticAlgorithm.prototype.getOptimalPartition = function (codebook) {
  */
 GeneticAlgorithm.prototype.generateNewSolutions = function () {
 
-    var a = 0, b = -1, newSolutions = [];
-
-    this.computeCrossSetSize();
+    var a = 0, b = 0, newSolutions = [];
 
     for (var s = 0; s < this.S; s++) {
         // Select a pair of solutions from the population
@@ -316,10 +315,10 @@ GeneticAlgorithm.prototype.crossSolutions = function (a, b) {
 
     // Get codebook and partition of first solution
     var ca = solutionA.codebook;
-    var pa = solutionB.partition;
+    var pa = solutionA.partition;
 
     // Get codebook and partition of second solution
-    var cb = solutionA.codebook;
+    var cb = solutionB.codebook;
     var pb = solutionB.partition;
 
     // 1. Combine centroids of the 2 solutions
@@ -375,18 +374,28 @@ GeneticAlgorithm.prototype.removeEmptyClusters = function (codebook, partition) 
  * @returns {Array}
  */
 GeneticAlgorithm.prototype.updateCentroids = function (codebook, partition) {
-    var optimalCodebook = [];
-    for (var i = 0; i < codebook.length; i++) {
-        var indices = partition.allIndexOf(i);
-        var vectors = this.X.getElementsByIndices(indices);
-        var centroid = codebook[i]; // Default to last centroid
-        if (vectors.length > 0) {
-            centroid = this.calculateMeanVector(vectors);
+
+    var sum = [];
+    var count = [];
+    for (var i = 0; i < this.N; i++) {
+        var j = partition[i];
+        if (typeof sum[j] === "undefined") {
+            sum[j] = this.X[i].slice(0, this.X[i].length).fill(0);
         }
-        optimalCodebook[i] = centroid;
+        sum[j] = sum[j].addArray(this.X[i].slice(0, this.X[i].length));
+        if (typeof count[j] === "undefined") {
+            count[j] = 0;
+        }
+        count[j] += 1;
     }
 
-    return optimalCodebook;
+    for (var k = 0; k < codebook.length; k++) {
+        if (typeof sum[k] !== "undefined" && count[k] > 0) {
+            codebook[k] = sum[k].divideBy(count[k]);
+        }
+    }
+
+    return codebook;
 };
 
 /**
@@ -478,12 +487,11 @@ GeneticAlgorithm.prototype.computeCrossSetSize = function () {
 
     var s = 1;
 
-    while (s * (s - 1) / 2 < (this.S - 1)) {
+    while ((s * (s + 1) / 2) < this.S) {
         s++;
     }
 
     this.crossSetSize = s;
-
 };
 
 /********************************************************************
