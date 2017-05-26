@@ -85,20 +85,20 @@ function execute() {
             if (legends.length === 0) {
                 svg.append("g")
                     .attr("class", "legend")
-                    .attr("transform", "translate(50,120)")
+                    .attr("transform", "translate(720,350)")
                     .attr("data-style-padding", 10)
                     .call(d3.legend);
             } else {
                 svg.selectAll("g[class='legend'").remove();
                 svg.append("g")
                     .attr("class", "legend")
-                    .attr("transform", "translate(50,120)")
+                    .attr("transform", "translate(720,350)")
                     .attr("data-style-padding", 10)
                     .call(d3.legend);
             }
 
             // Print evaluation scores to the screen
-            jQuery('#results').append("<div id='eva_scores' class='clustering_results'>" +
+            jQuery('#results_panel').append("<div id='eva_scores' class='clustering_results'>" +
                 "<b>SSE/TSE:</b> " + tse + "<br/>" +
                 "<b>nMSE: </b>" + nmse + "<br/>" +
                 "<b>CI: </b>" + ci +
@@ -138,7 +138,7 @@ function loadDataSet(path, groundTruthPath) {
             datatype: "text"
         }).done(function (d) {
             sampledata = parseData(d, limitFactor);
-            jQuery("#status").append("Data loaded!");
+            jQuery("#status").text("Data loaded!");
             alert("Data loaded!");
 
             // Plot the loaded data
@@ -227,6 +227,8 @@ function demo() {
  * @param sampledata
  */
 function initPlot(sampledata) {
+    jQuery("#eva_scores").remove();
+
     // Remove old plots
     svg.selectAll("*").remove();
 

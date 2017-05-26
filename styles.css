@@ -1,5 +1,5 @@
 svg {
-    margin: -70px 50px;
+    margin: -150px 0;
 }
 
 svg .axis path,
@@ -15,19 +15,19 @@ svg .axis text {
 }
 
 .field_group {
-    width: 47%;
     max-height: 500px;
     display: inline-block;
     float: left;
 }
 
-.info {
-    overflow-y: scroll;
+.data_set {
+    width: 38%;
+    height: 450px;
 }
 
-.result_group {
-    clear: both;
-    padding: 20px
+.result_graphic {
+    width: 55%;
+    height: 450px;
 }
 
 .legend {
@@ -43,7 +43,7 @@ svg .axis text {
 .clustering_results {
     display: inline-block;
     float: left;
-    margin-right: 50px;
+    margin-left: -3%;
 }
 
 #eva_scores {
@@ -51,4 +51,23 @@ svg .axis text {
     padding: 10px;
     font-family: "Calibri", serif;
     font-size: 20px;
+    margin-top: -30%;
+    margin-left: 66%;
+}
+
+.footer {
+    clear: both;
+    width: 50%;
+    margin: 0 auto;
+}
+
+.author {
+    width: 66%;
+    margin: 0 auto;
+}
+
+.data_btn {
+    margin-top: 5px;
+    margin-left: 3px;
+    width: 100px;
 }

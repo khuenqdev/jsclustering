@@ -187,6 +187,7 @@ function GeneticAlgorithm(X, M, S, T, GT) {
     this.M = M;
     this.S = S;
     this.T = T;
+    this.N = X.length; // Sample size
 
     if (typeof GT !== "undefined") {
         this.GT = GT;
@@ -276,7 +277,7 @@ GeneticAlgorithm.prototype.generateInitialSolutions = function (X, S, M, solutio
  */
 GeneticAlgorithm.prototype.generateRandomCodebook = function (X, M) {
     // Get random vector indices
-    var indices = Math.randIntList(0, X.length - 1, M, undefined, true);
+    var indices = Math.randIntList(0, this.N - 1, M, undefined, true);
 
     // Collect random vectors
     var C = [];
@@ -295,10 +296,9 @@ GeneticAlgorithm.prototype.generateRandomCodebook = function (X, M) {
  * @returns {Array}
  */
 GeneticAlgorithm.prototype.generateOptimalPartition = function (X, C) {
-    var N = X.length;
     var P = [];
 
-    for (var i = 0; i < N; i++) {
+    for (var i = 0; i < this.N; i++) {
         var j = this.findNearestVector(X[i], C);
         P[i] = j;
         C[j].size = C[j].size + 1;
@@ -404,7 +404,7 @@ GeneticAlgorithm.prototype.removeEmptyClusters = function (X, C, P, M) {
             var tmpSize = C[i].size;
             C[i] = C[last].clone();
             C[i].size = tmpSize;
-            this.joinPartitions(X, P, C, i, last);
+            this.joinPartitions(P, C, i, last);
             C.length--;
         }
     }
@@ -418,9 +418,8 @@ GeneticAlgorithm.prototype.removeEmptyClusters = function (X, C, P, M) {
  * @param a
  * @param b
  */
-GeneticAlgorithm.prototype.joinPartitions = function (X, P, C, a, b) {
-    var N = X.length;
-    for (var i = 0; i < N; i++) {
+GeneticAlgorithm.prototype.joinPartitions = function (P, C, a, b) {
+    for (var i = 0; i < this.N; i++) {
         if (P[i] === b) {
             P[i] = a;
         }
@@ -436,9 +435,9 @@ GeneticAlgorithm.prototype.joinPartitions = function (X, P, C, a, b) {
  * @returns {*}
  */
 GeneticAlgorithm.prototype.updateCentroids = function (X, C, P) {
-    var sum = [], count = [], N = X.length, K = C.length;
+    var sum = [], count = [], K = C.length;
 
-    for (var i = 0; i < N; i++) {
+    for (var i = 0; i < this.N; i++) {
         var j = P[i];
 
         if (typeof sum[j] === "undefined") {
@@ -486,9 +485,9 @@ GeneticAlgorithm.prototype.combineCentroids = function (C1, C2) {
  * @returns {Array}
  */
 GeneticAlgorithm.prototype.combinePartitions = function (X, P1, P2, C1, C2) {
-    var N = X.length, m = C1.length - 1;
+    var m = C1.length - 1;
     var PNew = [];
-    for (var i = 0; i < N; i++) {
+    for (var i = 0; i < this.N; i++) {
         var p1 = P1[i];
         var p2 = P2[i];
         var d1 = this.distance(X[i], C1[p1], true);
@@ -614,9 +613,9 @@ GeneticAlgorithm.prototype.detectChangedCodeVectors = function (CPrev, CNew, act
  * @returns {*}
  */
 GeneticAlgorithm.prototype.reducedSearchPartition = function (X, C, P, active, changedList) {
-    var N = X.length, k = -1;
+    var k = -1;
 
-    for (var i = 0; i < N; i++) {
+    for (var i = 0; i < this.N; i++) {
 
         if (changedList.length > 1) {
 
@@ -725,7 +724,7 @@ GeneticAlgorithm.prototype.mergeVectors = function (X, C, P, Q, a, b) {
     var tmpSize = C[a].size;
     C[a] = this.createCentroid(C[a], C[b]);
     C[a].size = tmpSize;
-    this.joinPartitions(X, P, C, a, b);
+    this.joinPartitions(P, C, a, b);
     this.fillEmptyPosition(C, Q, b, last);
     C.length--;
 };
@@ -1007,8 +1006,7 @@ GeneticAlgorithm.prototype.printPartition = function (P) {
  */
 GeneticAlgorithm.prototype.sumSquaredError = function (X, C, P) {
     var tse = 0;
-    var N = X.length;
-    for (var i = 0; i < N; i++) {
+    for (var i = 0; i < this.N; i++) {
         var j = P[i];
         if (C[j]) {
             tse += this.distance(X[i], C[j], true);
@@ -1028,10 +1026,10 @@ GeneticAlgorithm.prototype.sumSquaredError = function (X, C, P) {
 GeneticAlgorithm.prototype.normalisedMeanSquareError = function (X, C, P, tse) {
 
     if (!tse) {
-        tse = this.sumSquaredError(C, P);
+        tse = this.sumSquaredError(X, C, P);
     }
 
-    var n = X.length;
+    var n = this.N;
     var d = C[0].length;
 
     return tse / (n * d);

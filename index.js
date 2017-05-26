@@ -128,6 +128,7 @@ function execute(algorithm, datafile, params) {
     console.log("Iterations: " + (stopIter / params.algorithm_repeat));
     console.log("Execution time: " + (time / params.algorithm_repeat));
     console.log("Success: " + ((success / params.algorithm_repeat) * 100) + "%");
+    console.log("--------------------------------------------------");
 
     var resultTexts = "--- RESULTS FROM DATA SET [" + datafile + "] ---\n" +
         "Number of clusters: " + (nClusters / params.algorithm_repeat) + "/" + groundTruths.length + "\n" +
@@ -192,17 +193,17 @@ function botFactory(algorithm, sampleData, groundTruths, params) {
  * Main entry point
  */
 var dataset = [
-    ["dim032", {"algorithm_repeat": 2}],
-    ["unbalance", {"algorithm_repeat": 2}],
-    ["s1", {"algorithm_repeat": 2}],
-    ["s2", {"algorithm_repeat": 2}],
-    ["s3", {"algorithm_repeat": 2}],
-    ["s4", {"algorithm_repeat": 2}],
-    ["a1", {"algorithm_repeat": 2}],
-    ["a2", {"algorithm_repeat": 2}],
-    ["a3", {"algorithm_repeat": 2}],
-    ["birch1", {"algorithm_repeat": 1}],
-    ["birch2", {"algorithm_repeat": 1}]
+    ["dim032", {"algorithm_repeat": 100}],
+    ["unbalance", {"algorithm_repeat": 100}],
+    ["s1", {"algorithm_repeat": 100}],
+    ["s2", {"algorithm_repeat": 100}],
+    ["s3", {"algorithm_repeat": 100}],
+    ["s4", {"algorithm_repeat": 100}],
+    ["a1", {"algorithm_repeat": 100}],
+    ["a2", {"algorithm_repeat": 100}],
+    ["a3", {"algorithm_repeat": 100}],
+    ["birch1", {"algorithm_repeat": 100}],
+    ["birch2", {"algorithm_repeat": 100}]
 ];
 
 fs.truncateSync("logs.txt");
