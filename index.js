@@ -147,9 +147,13 @@ function execute(algorithm, datafile, params) {
         "Success: " + ((success / params.algorithm_repeat) * 100) + "%\n" +
         "SSEs: [" + sseArr.toString() + "]\n" +
         "Stop Iterations: [" + iterations.toString() + "]\n" +
-        "Times: [" + executionTimes.toString() + "]\n" +
-        (radius.length > 0) ? "Radius: [" + radius.toString() + "]" : "" +
-        "--------------------------------------------------\n";
+        "Times: [" + executionTimes.toString() + "]\n";
+
+    if (radius.length > 0) {
+        resultTexts += "Radius: [" + radius.toString() + "]";
+    }
+
+    resultTexts += "--------------------------------------------------\n";
 
     fs.writeFileSync("results.txt", resultTexts, {'flag': 'a'});
 }
@@ -215,9 +219,20 @@ var dataset = [
     ["birch2", {"algorithm_repeat": 100}]
 ];
 
+var al = [
+    AL_GA,
+    AL_MS
+];
+
 fs.truncateSync("logs.txt");
 fs.truncateSync("results.txt");
 
-for (var j = 0; j < dataset.length; j++) {
-    execute(AL_GA, dataset[j][0], dataset[j][1]);
+for (var i = 0; i < al.length; i++) {
+    for (var j = 0; j < dataset.length; j++) {
+        // Limit birch iterations for mean shift
+        if (al[i] === AL_MS && (dataset[j][0] === "birch1" || dataset[j][0] === "birch2")) {
+            dataset[j][1].algorithm_repeat = 3;
+        }
+        execute(al[i], dataset[j][0], dataset[j][1]);
+    }
 }

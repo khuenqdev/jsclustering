@@ -155,7 +155,7 @@ MeanShift.prototype.stopIter = 0;
  * @constructor
  */
 function MeanShift(X, R, M, GT) {
-    if (!X || !R) {
+    if (!X || R < 0) {
         throw "Invalid input parameters";
     }
 
