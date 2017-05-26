@@ -55,7 +55,8 @@ MeanShift.prototype.tuningSolution = function(X, M, C, P) {
         if (C.length > M) {
             this.performPNN(X, M, C, P);
         } else if (C.length < M) {
-            this.splitCentroids(X, M, C, P);
+            C = this.splitCentroids(X, M, C);
+            P = this.getOptimalPartition(X, C);
         }
 
     } else {
@@ -69,12 +70,54 @@ MeanShift.prototype.tuningSolution = function(X, M, C, P) {
     }
 };
 
-MeanShift.prototype.splitCentroids = function (X, M, C, P) {
-    var m = C.length;
+/**
+ * Heuristic centroid splitting method
+ * @param X
+ * @param M
+ * @param C
+ * @returns {*}
+ */
+MeanShift.prototype.splitCentroids = function (X, M, C) {
+    for (var i = 0; i < C.length; i++) {
+        if (C.length === M) {
+            return C;
+        }
+        var c = C[i].clone();
 
-    while (m < M) {
-        
+        // Choose two furthest vectors
+        var v1 = this.getFurthestVector(c, X);
+        var v2 = this.getFurthestVector(v1, X);
+
+        // Get mean vector as new code vector
+        var v3 = this.getMeanVector([c, v1]);
+        var v4 = this.getMeanVector([c, v2]);
+        v3.size = 0;
+        v4.size = 0;
+
+        if (C.length < M) {
+            C.push(v3);
+        }
+
+        if (C.length < M) {
+            C.push(v4);
+        }
     }
+    return C;
+};
+
+MeanShift.prototype.getFurthestVector = function (x, X) {
+    var maxDist = 0;
+    var maxIdx = 0;
+
+    for (var i = 0; i < this.N; i++) {
+        var d = this.distance(x, X[i], true);
+        if (d > maxDist) {
+            maxDist = d;
+            maxIdx = i;
+        }
+    }
+
+    return maxIdx;
 };
 
 /**
