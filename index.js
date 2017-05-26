@@ -63,6 +63,8 @@ function execute(algorithm, datafile, params) {
 
     var sseArr = [];
     var executionTimes = [];
+    var iterations = [];
+    var radius = [];
 
     switch (algorithm) {
         case AL_MS:
@@ -103,6 +105,11 @@ function execute(algorithm, datafile, params) {
         stopIter += bot.stopIter;
         nClusters += bot.centroids.length;
         sseArr.push(sse);
+        iterations.push(bot.stopIter);
+
+        if (typeof bot.R !== "undefined" && bot.R !== Infinity && bot.R > 0) {
+            radius.push(bot.R);
+        }
 
         if (bot.ci === 0) {
             success++;
@@ -139,7 +146,9 @@ function execute(algorithm, datafile, params) {
         "Execution time: " + (time / params.algorithm_repeat) + "\n" +
         "Success: " + ((success / params.algorithm_repeat) * 100) + "%\n" +
         "SSEs: [" + sseArr.toString() + "]\n" +
+        "Stop Iterations: [" + iterations.toString() + "]\n" +
         "Times: [" + executionTimes.toString() + "]\n" +
+        (radius.length > 0) ? "Radius: [" + radius.toString() + "]" : "" +
         "--------------------------------------------------\n";
 
     fs.writeFileSync("results.txt", resultTexts, {'flag': 'a'});

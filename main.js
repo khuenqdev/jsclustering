@@ -105,7 +105,7 @@ function execute() {
                 "</div>");
 
             if (bot.R) {
-                jQuery("#radius").val(bot.R);
+                jQuery("#radius").val(Math.sqrt(bot.R));
             }
 
             statusElement.text("Done clustering!");
