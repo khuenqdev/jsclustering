@@ -1,6 +1,81 @@
-/**
- * Created by Nguyen Quang Khue on 26-May-17.
- */
+/********************************************************************
+ * Created by Nguyen Quang Khue on 18-May-17.
+ *
+ * This file gives implementation of Mean Shift algorithm for clustering,
+ * originally presented in:
+ *
+ * " Y. Cheng, "Mean shift, mode seeking, and clustering", IEEE Trans.
+ * on Pattern analysis and Machine Intelligence, 17 (8), 790-799, 1995."
+ *
+ * Updated 26-May-2017
+ * Nguyen Quang Khue
+ * khuenq.devmail@gmail.com / quangn@student.uef.fi
+ *
+ * ------------------------------------------------------------------
+ * INPUT:
+ *      X: Data for clustering, represented in the form of 2-D array
+ *          * example: var X = [[1,2,4], [1,1,2], [4,5,3], [9,10,0]];
+ *      R: Kernel radius for gathering vectors to perform mean shifting
+ *      M: Number of expected code vectors / clusters
+ *      GT: Groundtruth centroid data, represented in the form of
+ *          2-D array, same as input data (if applicable)
+ * OUTPUT: (accessed through object properties)
+ *      centroids: Final solution's codebook
+ *      clusterLabels: Final solution's partition
+ *      tse: Final solution's Sum of Squared Error / Total Squared Error
+ *      nmse: Final solution's Normalised Mean Square Error
+ *      ci: Centroid Index score for evaluate the result validity (optional)
+ *          only calculated when ground truth data is supplied
+ * -------------------------------------------------------------------
+ * [Note]
+ * 1. The algorithm is provided as a standalone JavaScript class
+ *    with all possible helper functions provided
+ * 2. Clustering algorithms are best run with JavaScript engines
+ *    such as Node.js
+ * 3. This implementation uses flat kernel for performing the mean
+ *    shifting process
+ * 4. References to algorithms used for optimize/fine-tuning clustering
+ *    results:
+ *    a. Fast K-Means:
+ *      "T. Kaukoranta, P. Fränti and O. Nevalainen, "A fast exact GLA
+ *      based on code vector activity detection", IEEE Trans. on Image
+ *      Processing, 9 (8), 1337-1342, August 2000"
+ *    b. Fast exact PNN:
+ *      "Franti, P., Kaukoranta, T., 1998. Fast implementation of the
+ *      optimal PNN method. In: IEEE Proceedings of the
+ *      International Conference on Image Processing (ICIPÕ98),
+ *      Chicago, Illinois, USA (revised version will appear in IEEE
+ *      Transactions on Image Processing)."
+ * -------------------------------------------------------------------
+ * USAGE:
+ *
+ * data = [
+ *     [1, 2],
+ *     [1.5, 1.8],
+ *     [5, 8],
+ *     [8, 8],
+ *     [1, 0.6],
+ *     [9, 11],
+ *     [8, 2],
+ *     [10, 2],
+ *     [9, 3]
+ * ];
+ *
+ * groundTruths = [
+ *     [1.1666666666666667, 1.4666666666666666],
+ *     [7.333333333333333, 9],
+ *     [9, 2.3333333333333335]
+ * ];
+ *
+ * var ms = new MeanShift(data, 3, 4, 20, groundTruths);
+ * ms.execute();
+ *
+ * var centroids = ms.centroids;
+ * var clusterLabels = ms.clusterLabels;
+ * var sse = ms.tse;
+ * var ci = ms.ci;
+ *
+ ********************************************************************/
 
 /**
  * Node.js module export
@@ -9,8 +84,76 @@ if (typeof module !== 'undefined') {
     module.exports.MeanShift = MeanShift;
 }
 
-MeanShift.prototype.maxKMeansIterations = 2;
+/**
+ * Input data set of vectors
+ * @type {Array}
+ */
+MeanShift.prototype.X = [];
 
+/**
+ * Kernel radius
+ * @type {number}
+ */
+MeanShift.prototype.R = Infinity;
+
+/**
+ * Desired number of code vectors / clusters
+ * @type {number}
+ */
+MeanShift.prototype.M = Infinity;
+
+/**
+ * Ground truth centroid data (if applicable)
+ * @type {Array}
+ */
+MeanShift.prototype.GT = [];
+
+/**
+ * Final solution's codebook
+ * @type {Array}
+ */
+MeanShift.prototype.centroids = [];
+
+/**
+ * Final solution's partition mappings
+ * @type {Array}
+ */
+MeanShift.prototype.clusterLabels = [];
+
+/**
+ * Sum of Squared Error / Total Squared Error
+ * @type {Number}
+ */
+MeanShift.prototype.tse = Infinity;
+
+/**
+ * Normalised Mean Square Error
+ * @type {Number}
+ */
+MeanShift.prototype.nmse = Infinity;
+
+/**
+ * Centroid Index score
+ * @type {Number}
+ */
+MeanShift.prototype.ci = Infinity;
+
+/**
+ * The iteration where the algorithm stops
+ * when no improvements achieved or when
+ * the centroids are converged
+ * @type {number}
+ */
+MeanShift.prototype.stopIter = 0;
+
+/**
+ * Constructor of the algorithm class
+ * @param X Input data set of vectors
+ * @param R Kernel radius
+ * @param M Desired number of code vectors / clusters
+ * @param GT Ground truth centroids data (if applicable)
+ * @constructor
+ */
 function MeanShift(X, R, M, GT) {
     if (!X || !R) {
         throw "Invalid input parameters";
@@ -29,13 +172,13 @@ function MeanShift(X, R, M, GT) {
     }
 }
 
+/**
+ * Main execution point
+ */
 MeanShift.prototype.execute = function () {
-
     if (!this.R || this.R === Infinity || this.R <= 0) {
         this.R = this.determineKernelRadius(this.X);
     }
-
-    console.log("Radius: " + this.R);
 
     var C = this.getOptimalCodebook(this.X, this.R);
     var P = this.getOptimalPartition(this.X, C);
@@ -48,8 +191,156 @@ MeanShift.prototype.execute = function () {
     this.storeFinalSolution(C, P, tse);
 };
 
-MeanShift.prototype.tuningSolution = function(X, M, C, P) {
+/********************************************************************
+ * INITIALIZATION                                                   *
+ ********************************************************************/
 
+/**
+ * Get all vectors as initial codebook
+ * @param X
+ * @returns {Array.<*>|*}
+ */
+MeanShift.prototype.getInitialCodebook = function (X) {
+    return X.clone();
+};
+
+/********************************************************************
+ * MAIN ROUTINES                                                    *
+ ********************************************************************/
+/**
+ * Heuristic method for determine kernel radius
+ * @param X
+ * @returns {number}
+ */
+MeanShift.prototype.determineKernelRadius = function (X) {
+    var N = this.N;
+    var D = X[0].length;
+    var k = Math.floor(Math.sqrt(N) / D) + 1;
+
+    var cb = this.generateRandomCodebook(X, k);
+    var pt = this.getOptimalPartition(X, cb);
+
+    var totalAvgDist = 0;
+
+    for (var i = 0; i < this.N; i++) {
+        var j = pt[i];
+        var d = this.distance(X[i], cb[j], true);
+        if (cb[j].size > 0) {
+            totalAvgDist += d / cb[j].size;
+        }
+    }
+
+    return Math.round(totalAvgDist / k);
+};
+
+/**
+ * Get optimal codebook iteratively
+ * @param X
+ * @param R
+ * @returns {Array.<*>|*}
+ */
+MeanShift.prototype.getOptimalCodebook = function (X, R) {
+    var C = this.getInitialCodebook(X);
+    var optimize = false, iterations = 0;
+
+    while (!optimize) {
+        iterations++;
+        this.stopIter = iterations;
+
+        var CPrev = C.clone();
+        C = this.updateCentroids(X, C, R);
+
+        if (C.length === CPrev.length && this.areSameCodebooks(C, CPrev)) {
+            optimize = true;
+        }
+    }
+
+    return C;
+};
+
+/**
+ * Get optimal partition from codebook
+ * @param X
+ * @param C
+ * @returns {Array}
+ */
+MeanShift.prototype.getOptimalPartition = function (X, C) {
+    var P = [];
+    for (var i = 0; i < this.N; i++) {
+        var j = this.findNearestVector(X[i], C);
+        P[i] = j;
+        C[j].size += 1;
+    }
+    return P;
+};
+
+/**
+ * Store the final solution
+ * @param C
+ * @param P
+ * @param tse
+ */
+MeanShift.prototype.storeFinalSolution = function (C, P, tse) {
+    this.centroids = C;
+    this.clusterLabels = P;
+    this.tse = tse;
+    this.nmse = this.normalisedMeanSquareError(this.X, C, P, tse);
+    if (this.GT && this.GT.length > 0) {
+        this.ci = this.centroidIndex(C, this.GT);
+    }
+};
+
+/**
+ * Update centroids
+ * @param X
+ * @param C
+ * @param R
+ * @returns {Array}
+ */
+MeanShift.prototype.updateCentroids = function (X, C, R) {
+    var CNew = [], len = C.length;
+
+    for (var i = 0; i < len; i++) {
+
+        var withinRadius = [];
+
+        for (var j = 0; j < this.N; j++) {
+            // Calculate distance between current code vector and all vectors in the data set
+            var d = this.distance(C[i], X[j], true);
+
+            // Search for vectors within kernel radius
+            if (d <= R) {
+                withinRadius.push(X[j]);
+            }
+        }
+
+        if (withinRadius.length > 0) {
+            // Push the mean vector of such vectors to the new codebook
+            var centroid = this.getMeanVector(withinRadius);
+            centroid.size = 0;
+            CNew.push(centroid);
+        }
+
+    }
+
+    // Remove duplicate centroids
+    CNew = this.sortCodebook(this.filterDuplicateCentroids(CNew));
+
+    return CNew;
+};
+
+/********************************************************************
+ * TUNING ROUTINES                                                    *
+ ********************************************************************/
+/**
+ * Fine-tune the final solution
+ * @param X
+ * @param M
+ * @param C
+ * @param P
+ * @returns {{codebook: *, partition: *}}
+ */
+MeanShift.prototype.tuningSolution = function(X, M, C, P) {
     if (typeof M !== "undefined" && M !== Infinity && M > 0) {
 
         if (C.length > M) {
@@ -85,8 +376,8 @@ MeanShift.prototype.splitCentroids = function (X, M, C) {
         var c = C[i].clone();
 
         // Choose two furthest vectors
-        var v1 = this.getFurthestVector(c, X);
-        var v2 = this.getFurthestVector(v1, X);
+        var v1 = X[this.getFurthestVector(c, X)];
+        var v2 = X[this.getFurthestVector(v1, X)];
 
         // Get mean vector as new code vector
         var v3 = this.getMeanVector([c, v1]);
@@ -105,6 +396,12 @@ MeanShift.prototype.splitCentroids = function (X, M, C) {
     return C;
 };
 
+/**
+ * Get two furthest vectors
+ * @param x
+ * @param X
+ * @returns {number}
+ */
 MeanShift.prototype.getFurthestVector = function (x, X) {
     var maxDist = 0;
     var maxIdx = 0;
@@ -148,56 +445,16 @@ MeanShift.prototype.removeLowDensityClusters = function (C) {
     return newCodebook;
 };
 
-MeanShift.prototype.determineKernelRadius = function (X) {
-    var N = this.N;
-    var D = X[0].length;
-    var k = Math.floor(Math.sqrt(N) / D) + 1;
+/********************************************************************
+ * LOW-LEVEL ROUTINES                                               *
+ ********************************************************************/
 
-    var cb = this.generateRandomCodebook(X, k);
-    var pt = this.getOptimalPartition(X, cb);
-
-    var totalAvgDist = 0;
-
-    for (var i = 0; i < this.N; i++) {
-        var j = pt[i];
-        var d = this.distance(X[i], cb[j], true);
-        if (cb[j].size > 0) {
-            totalAvgDist += d / cb[j].size;
-        }
-    }
-
-    return Math.round(totalAvgDist / k);
-};
-
-MeanShift.prototype.storeFinalSolution = function (C, P, tse) {
-    this.centroids = C;
-    this.clusterLabels = P;
-    this.tse = tse;
-    this.nmse = this.normalisedMeanSquareError(this.X, C, P, tse);
-    if (this.GT && this.GT.length > 0) {
-        this.ci = this.centroidIndex(C, this.GT);
-    }
-};
-
-MeanShift.prototype.getOptimalCodebook = function (X, R) {
-    var C = this.getInitialCodebook(X);
-    var optimize = false, iterations = 0;
-
-    while (!optimize) {
-        iterations++;
-        this.stopIter = iterations;
-
-        var CPrev = C.clone();
-        C = this.updateCentroids(X, C, R);
-
-        if (C.length === CPrev.length && this.areSameCodebooks(C, CPrev)) {
-            optimize = true;
-        }
-    }
-
-    return C;
-};
-
+/**
+ * Determine whether two codebooks are the same
+ * @param C1
+ * @param C2
+ * @returns {boolean}
+ */
 MeanShift.prototype.areSameCodebooks = function (C1, C2) {
     var K = C1.length;
     for (var i = 0; i < K; i++) {
@@ -228,38 +485,6 @@ MeanShift.prototype.generateRandomCodebook = function (X, M) {
     return C;
 };
 
-MeanShift.prototype.updateCentroids = function (X, C, R) {
-    var CNew = [], len = C.length;
-
-    for (var i = 0; i < len; i++) {
-
-        var withinRadius = [];
-
-        for (var j = 0; j < this.N; j++) {
-            // Calculate distance between current code vector and all vectors in the data set
-            var d = this.distance(C[i], X[j], true);
-
-            // Search for vectors within kernel radius
-            if (d <= R) {
-                withinRadius.push(X[j]);
-            }
-        }
-
-        if (withinRadius.length > 0) {
-            // Push the mean vector of such vectors to the new codebook
-            var centroid = this.getMeanVector(withinRadius);
-            centroid.size = 0;
-            CNew.push(centroid);
-        }
-
-    }
-
-    // Remove duplicate centroids
-    CNew = this.sortCodebook(this.filterDuplicateCentroids(CNew));
-
-    return CNew;
-};
-
 /**
  * Sort the codebook by its code vectors' first dimension
  * @param C
@@ -271,6 +496,11 @@ MeanShift.prototype.sortCodebook = function (C) {
     });
 };
 
+/**
+ * Remove duplicated centroids from the codebook
+ * @param C
+ * @returns {Array}
+ */
 MeanShift.prototype.filterDuplicateCentroids = function (C) {
     var seen = {};
     var out = [];
@@ -286,6 +516,10 @@ MeanShift.prototype.filterDuplicateCentroids = function (C) {
     return out;
 };
 
+/**
+ * Get mean vector
+ * @param V
+ */
 MeanShift.prototype.getMeanVector = function (V) {
     var sum = V[0].clone(); // Set initial sum to first vector
     var nVecs = V.length;
@@ -298,18 +532,56 @@ MeanShift.prototype.getMeanVector = function (V) {
     return sum.divideBy(nVecs);
 };
 
-MeanShift.prototype.getInitialCodebook = function (X) {
-    return X.clone();
+/**
+ * Get the nearest vector to an input vector
+ * @param x
+ * @param vectors
+ * @returns {number}
+ */
+MeanShift.prototype.findNearestVector = function (x, vectors) {
+
+    var minDist = Infinity;
+    var minIdx = 0;
+
+    for (var i = 0; i < vectors.length; i++) {
+        var d = this.distance(x, vectors[i], true);
+        if (d < minDist) {
+            minDist = d;
+            minIdx = i;
+        }
+    }
+
+    return minIdx;
 };
 
-MeanShift.prototype.getOptimalPartition = function (X, C) {
-    var P = [];
-    for (var i = 0; i < this.N; i++) {
-        var j = this.findNearestVector(X[i], C);
-        P[i] = j;
-        C[j].size += 1;
+/**
+ * Calculate euclidean distance between two vectors
+ * @param x1
+ * @param x2
+ * @param squared whether we calculate squared distance
+ * @returns {*}
+ */
+MeanShift.prototype.distance = function (x1, x2, squared) {
+    if (x1.length !== x2.length) {
+        console.trace();
+        throw "Vectors must be of the same length!";
     }
-    return P;
+
+    // Initialize distance variable
+    var d = 0;
+
+    var n = x1.length;
+
+    // Calculate distance between each feature
+    for (var i = 0; i < n; i++) {
+        d += Math.pow(x1[i] - x2[i], 2);
+    }
+
+    if (squared) {
+        return d;
+    }
+
+    return Math.sqrt(d);
 };
 
 /********************************************************************
@@ -550,7 +822,6 @@ MeanShift.prototype.normalisedMeanSquareError = function (X, C, P, tse) {
 /********************************************************************
  * Centroid index calculation                                       *
  ********************************************************************/
-
 /**
  * Calculate one-way dissimilarity score between
  * two sets of data
@@ -602,58 +873,6 @@ MeanShift.prototype.centroidIndex = function (s1, s2) {
     var CI1 = this.calculateDissimilarity(s1, s2);
     var CI2 = this.calculateDissimilarity(s2, s1);
     return Math.max(CI1, CI2);
-};
-
-/**
- * Get the nearest vector to an input vector
- * @param x
- * @param vectors
- * @returns {number}
- */
-MeanShift.prototype.findNearestVector = function (x, vectors) {
-
-    var minDist = Infinity;
-    var minIdx = 0;
-
-    for (var i = 0; i < vectors.length; i++) {
-        var d = this.distance(x, vectors[i], true);
-        if (d < minDist) {
-            minDist = d;
-            minIdx = i;
-        }
-    }
-
-    return minIdx;
-};
-
-/**
- * Calculate euclidean distance between two vectors
- * @param x1
- * @param x2
- * @param squared whether we calculate squared distance
- * @returns {*}
- */
-MeanShift.prototype.distance = function (x1, x2, squared) {
-    if (x1.length !== x2.length) {
-        console.trace();
-        throw "Vectors must be of the same length!";
-    }
-
-    // Initialize distance variable
-    var d = 0;
-
-    var n = x1.length;
-
-    // Calculate distance between each feature
-    for (var i = 0; i < n; i++) {
-        d += Math.pow(x1[i] - x2[i], 2);
-    }
-
-    if (squared) {
-        return d;
-    }
-
-    return Math.sqrt(d);
 };
 
 /**
