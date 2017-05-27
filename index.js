@@ -127,7 +127,7 @@ function execute(algorithm, datafile, params) {
     fs.writeFileSync("logs.txt", "-------\n", {'flag': 'a'});
 
     console.log("***");
-    console.log("--- RESULTS FROM DATA SET [" + datafile + "] ---");
+    console.log("--- <" + algorithmName + "> RESULTS FROM DATA SET [" + datafile + "] ---");
     console.log("Number of clusters: " + (nClusters / params.algorithm_repeat) + "/" + groundTruths.length);
     console.log("SSE/TSE: " + (sse / params.algorithm_repeat));
     console.log("nMSE: " + (nMSE / params.algorithm_repeat));
