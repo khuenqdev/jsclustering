@@ -137,7 +137,7 @@ function execute(algorithm, datafile, params) {
     console.log("Success: " + ((success / params.algorithm_repeat) * 100) + "%");
     console.log("--------------------------------------------------");
 
-    var resultTexts = "--- RESULTS FROM DATA SET [" + datafile + "] ---\n" +
+    var resultTexts = "--- <" + algorithmName + "> RESULTS FROM DATA SET [" + datafile + "] ---\n" +
         "Number of clusters: " + (nClusters / params.algorithm_repeat) + "/" + groundTruths.length + "\n" +
         "SSE/TSE: " + (sse / params.algorithm_repeat) + "\n" +
         "nMSE: " + (nMSE / params.algorithm_repeat) + "\n" +
