@@ -16,6 +16,7 @@ var ci = Infinity;
 var K_MEANS = 0;
 var MEAN_SHIFT = 1;
 var GEN_AL = 2;
+var PNN_AL = 3;
 
 /********************************************************************
  * MAIN ROUTINES                                                    *
@@ -49,12 +50,12 @@ function execute() {
         statusElement.text("Either population size and number of iterations is invalid!");
         alert("Either population size and number of iterations is invalid!");
     } else {
-        statusElement.text("Running " + jQuery("#algorithm[selected='selected']").text() + " algorithm...");
+        statusElement.html("<span style='color:red'>Running " + jQuery("#algorithm[selected='selected']").text() + " algorithm...</span>");
         setTimeout(function () {
             var bot;
             switch (algorithm) {
                 case K_MEANS: // Fast K-Means
-                    bot = new KMeans(sampledata, nClusters, 100, groundTruths);
+                    bot = new KMeans(sampledata, nClusters, 200, groundTruths);
                     break;
                 case MEAN_SHIFT: // Mean Shift
                     bot = new MeanShift(sampledata, kernelRadius, nClusters, groundTruths);
@@ -62,8 +63,11 @@ function execute() {
                 case GEN_AL: // Genetic Algorithm
                     bot = new GeneticAlgorithm(sampledata, nClusters, size, iter, groundTruths);
                     break;
+                case PNN_AL: // Fast Pair-wise nearest neighbor
+                    bot = new PNN(sampledata, nClusters, groundTruths);
+                    break;
                 default:
-                    bot = new KMeans(sampledata, nClusters, Infinity, groundTruths);
+                    bot = new KMeans(sampledata, nClusters, 200, groundTruths);
                     break;
             }
 
@@ -74,6 +78,7 @@ function execute() {
             tse = bot.tse;
             nmse = bot.nmse;
             ci = bot.ci;
+            stopIter = bot.stopIter;
 
             // Plot the centroids
             var newData = sampledata.slice(0, sampledata.length);
@@ -85,30 +90,38 @@ function execute() {
             if (legends.length === 0) {
                 svg.append("g")
                     .attr("class", "legend")
-                    .attr("transform", "translate(720,350)")
+                    .attr("transform", "translate(725,370)")
                     .attr("data-style-padding", 10)
                     .call(d3.legend);
             } else {
                 svg.selectAll("g[class='legend'").remove();
                 svg.append("g")
                     .attr("class", "legend")
-                    .attr("transform", "translate(720,350)")
+                    .attr("transform", "translate(725,370)")
                     .attr("data-style-padding", 10)
                     .call(d3.legend);
             }
 
+            var tseText = tse.toExponential(2).toString();
+            var nMseText = tse.toExponential(2).toString();
+            var p1 = tseText.substr(tseText.lastIndexOf("+") + 1);
+            var p2 = nMseText.substr(tseText.lastIndexOf("+") + 1);
+            tseText = tseText.replace("e+" + p1, " x 10<sup>" + p1 + "</sup>");
+            nMseText = nMseText.replace("e+" + p2, "x 10<sup>" + p2 + "</sup>");
+
             // Print evaluation scores to the screen
             jQuery('#results_panel').append("<div id='eva_scores' class='clustering_results'>" +
-                "<b>SSE/TSE:</b> " + tse + "<br/>" +
-                "<b>nMSE: </b>" + nmse + "<br/>" +
-                "<b>CI: </b>" + ci +
+                "<b>SSE/TSE:</b> " + tseText + "<br/>" +
+                "<b>nMSE: </b>" + nMseText + "<br/>" +
+                "<b>CI: </b>" + ci + "<br/>" +
+                "<b>Iterations: </b>" + bot.stopIter + "" +
                 "</div>");
 
             if (bot.R) {
                 jQuery("#radius").val(Math.sqrt(bot.R));
             }
 
-            statusElement.text("Done clustering!");
+            statusElement.html("<span style='color:green'>Done clustering!</span>");
         }, 300);
 
         var legends = svg.selectAll("g[class='legend'");
@@ -130,7 +143,7 @@ function loadDataSet(path, groundTruthPath) {
     var limitFactor = parseFloat(jQuery("#limit_factor").val()) / 100;
 
     if (limitFactor > 1 || limitFactor < 0) {
-        alert ("Invalid sub-sampling parameter, please enter number between 0 and 100!")
+        alert("Invalid sub-sampling parameter, please enter number between 0 and 100!")
     } else {
         jQuery.ajax({
             method: "GET",

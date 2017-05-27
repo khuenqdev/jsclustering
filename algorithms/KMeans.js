@@ -8,7 +8,7 @@
  * based on code vector activity detection", IEEE Trans. on Image
  * Processing, 9 (8), 1337-1342, August 2000"
  *
- * Updated 18-May-2017
+ * Updated 26-May-2017
  * Nguyen Quang Khue
  * khuenq.devmail@gmail.com / quangn@student.uef.fi
  *
@@ -167,32 +167,10 @@ function KMeans(X, k, T, GT) {
  * Main execution point
  */
 KMeans.prototype.execute = function () {
-    var active = [];
-    var changedList = [-1];
-
     var codebook = this.generateRandomCodebook(this.X, this.k);
-    var partition = this.getOptimalPartition(this.X, codebook);
-    var iterations = 0;
-
-    while (iterations < this.T && changedList.length > 0) {
-        var prevCodebook = codebook.slice(0, codebook.length);
-        codebook = this.calculateCentroids(this.X, prevCodebook, partition);
-        var changes = this.detectChangedCodeVectors(prevCodebook, codebook, active, changedList);
-        changedList = changes.changedList;
-        active = changes.activeList;
-        partition = this.reducedSearchPartition(this.X, codebook, partition, active, changedList);
-        this.stopIter = iterations + 1;
-        iterations++;
-    }
-
-    this.centroids = codebook;
-    this.clusterLabels = partition;
-    this.tse = this.sumSquaredError(codebook, partition);
-    this.nmse = this.normalisedMeanSquareError(codebook, partition, this.tse);
-
-    if (this.GT && this.GT.length > 0) {
-        this.ci = this.centroidIndex(codebook, this.GT);
-    }
+    var partition = this.generateOptimalPartition(this.X, codebook);
+    var results = this.iterateByKMeans(this.X, this.k, codebook, partition);
+    this.storeFinalSolution(results);
 };
 
 /********************************************************************
@@ -201,27 +179,40 @@ KMeans.prototype.execute = function () {
 
 /**
  * Generate random codebook from a set of data
- * @param data
- * @param k
+ * @param X
+ * @param M
  * @returns {Array}
  */
-KMeans.prototype.generateRandomCodebook = function (data, k) {
-    var indices = Math.randIntList(0, data.length - 1, k, undefined, true);
-    return data.getElementsByIndices(indices);
+KMeans.prototype.generateRandomCodebook = function (X, M) {
+    // Get random vector indices
+    var indices = Math.randIntList(0, this.N - 1, M, undefined, true);
+
+    // Collect random vectors
+    var C = [];
+    for (var i = 0; i < indices.length; i++) {
+        C[i] = X[indices[i]];
+        C[i].size = 0;
+    }
+
+    return C;
 };
 
 /**
  * Get optimal partition mapping for a certain codebook
- * @param data
- * @param codebook
+ * @param X
+ * @param C
  * @returns {Array}
  */
-KMeans.prototype.getOptimalPartition = function (data, codebook) {
-    var partition = [];
-    for (var i = 0; i < data.length; i++) {
-        partition[i] = this.findNearestVector(data[i], codebook);
+KMeans.prototype.generateOptimalPartition = function (X, C) {
+    var P = [];
+
+    for (var i = 0; i < this.N; i++) {
+        var j = this.findNearestVector(X[i], C);
+        P[i] = j;
+        C[j].size = C[j].size + 1;
     }
-    return partition;
+
+    return P;
 };
 
 /********************************************************************
@@ -229,126 +220,160 @@ KMeans.prototype.getOptimalPartition = function (data, codebook) {
  ********************************************************************/
 
 /**
- * Detect active code vector (centroids) in the code book
- * and track changes
- * @param prevCodebook
- * @param newCodebook
- * @param active
- * @param changedList
+ * Get optimal solution
+ * @param X
+ * @param M
+ * @param C
+ * @param P
+ * @returns {{codebook: *, partition: *, tse: number}}
  */
-KMeans.prototype.detectChangedCodeVectors = function (prevCodebook, newCodebook, active, changedList) {
+KMeans.prototype.iterateByKMeans = function (X, M, C, P) {
+    var active = [];
+    var changedList = [-1];
 
-    changedList.length = 0; // Make the changed list empty
+    var iterations = 0;
 
-    // For each code vector of the previous code book
-    for (var j = 0; j < prevCodebook.length; j++) {
-
-        active[j] = false;
-
-        // If the previous code vector and the new code vector are not the same centroid
-        if (!newCodebook[j].equals(prevCodebook[j])) {
-            if (!changedList.hasElement(j)) {
-                changedList.push(j); // Put the changed code vector index to the changed list
-            }
-            active[j] = true; // Mark it as active
-        }
-
+    while (iterations < this.T && changedList.length > 0) {
+        var CPrev = C.clone();
+        C = this.calculateCentroids(X, C, P);
+        this.detectChangedCodeVectors(CPrev, C, active, changedList);
+        P = this.reducedSearchPartition(X, C, P, active, changedList);
+        iterations++;
+        this.stopIter = iterations;
     }
 
     return {
-        "changedList": changedList,
-        "activeList": active
-    };
+        "codebook": C,
+        "partition": P,
+        "tse": this.sumSquaredError(X, C, P)
+    }
+};
 
+/**
+ * Store final results
+ * @param results
+ */
+KMeans.prototype.storeFinalSolution = function (results) {
+    this.centroids = results.codebook;
+    this.clusterLabels = results.partition;
+    this.tse = this.sumSquaredError(this.X, results.codebook, results.partition);
+    this.nmse = this.normalisedMeanSquareError(this.X, results.codebook, results.partition, this.tse);
+
+    if (this.GT && this.GT.length > 0) {
+        this.ci = this.centroidIndex(results.codebook, this.GT);
+    }
+};
+
+/**
+ * Detect active code vector (centroids) in the code book
+ * and track changes
+ * @param CPrev
+ * @param CNew
+ * @param active
+ * @param changedList
+ */
+KMeans.prototype.detectChangedCodeVectors = function (CPrev, CNew, active, changedList) {
+    changedList.length = 0;
+
+    var K = CPrev.length;
+
+    for (var j = 0; j < K; j++) {
+        active[j] = false;
+        if (!CPrev[j].equals(CNew[j])) {
+            changedList.push(j);
+            active[j] = true;
+        }
+    }
 };
 
 /**
  * Reduce the search partition by updating cluster labels
  * of each input data vector to the nearest code vector (centroid)
- * @param data
- * @param codebook
- * @param partition
+ * @param X
+ * @param C
+ * @param P
  * @param active
  * @param changedList
  * @returns {*}
  */
-KMeans.prototype.reducedSearchPartition = function (data, codebook, partition, active, changedList) {
+KMeans.prototype.reducedSearchPartition = function (X, C, P, active, changedList) {
+    var k = 0;
 
-    // For each input data vector
-    for (var i = 0; i < data.length; i++) {
+    for (var i = 0; i < this.N; i++) {
+        /*var j = P[i];
 
-        if (changedList.length > 1) {
-            var j = partition[i]; // Get its current cluster label in the partition mapping
-
-            if (active[j]) { // If the code vector corresponding to the cluster is active
-                // Find and assign the current vector to the cluster of the nearest code vector
-                partition[i] = this.findNearestVector(data[i], codebook);
-            } else {
-                // Otherwise, find and assign the current vector to the cluster of the nearest code vector in the active code vector list
-                partition[i] = this.findNearestCentroidInChangedList(data[i], codebook, changedList);
-            }
+        if (active[j]) {
+            k = this.findNearestVector(X[i], C);
         } else {
-            partition[i] = this.findNearestVector(data[i], codebook);
-        }
-
+            k = this.findNearestInSet(X[i], C, changedList);
+        }*/
+        k = this.findNearestVector(X[i], C);
+        P[i] = k;
+        C[k].size += 1;
     }
 
-    return partition;
-
+    return P;
 };
 
 /**
  * Find the nearest index of code vector (centroid) that is
  * in the changed list (active code vector)
  * @param vector
- * @param codebook
+ * @param C
  * @param changedList
  * @returns {number}
  */
-KMeans.prototype.findNearestCentroidInChangedList = function (vector, codebook, changedList) {
-
+KMeans.prototype.findNearestInSet = function (vector, C, changedList) {
     var minDist = Infinity;
-    var minIndex = 0;
+    var minIdx = 0;
+    var len = changedList.length;
 
-    for (var i = 0; i < changedList.length; i++) {
+    for (var i = 0; i < len; i++) {
         var j = changedList[i];
-        var d = this.distance(vector, codebook[j], true);
+        var d = this.distance(vector, C[j], true);
         if (d < minDist) {
-            minIndex = j;
+            minIdx = j;
             minDist = d;
         }
     }
 
-    return minIndex;
-
+    return minIdx;
 };
 
 /**
  * Calculate partition centroids and uses them as code vectors
- * @param data
- * @param codebook
- * @param partition
+ * @param X
+ * @param C
+ * @param P
  * @returns {Array}
  */
-KMeans.prototype.calculateCentroids = function (data, codebook, partition) {
-    var newCodebook = [];
+KMeans.prototype.calculateCentroids = function (X, C, P) {
+    var sum = [], count = [], K = C.length;
 
-    for (var i = 0; i < codebook.length; i++) {
+    for (var i = 0; i < this.N; i++) {
+        var j = P[i];
 
-        var indices = partition.allIndexOf(i);
-        var vectors = data.getElementsByIndices(indices);
-
-        // Default to old centroid
-        var centroid = codebook[i];
-
-        if (vectors.length > 0) { // If the list of vectors is not empty
-            centroid = this.calculateMeanVector(vectors);
+        if (typeof sum[j] === "undefined") {
+            sum[j] = X[i].clone().fill(0);
         }
 
-        newCodebook[i] = centroid;
+        sum[j] = sum[j].addArray(X[i]);
+
+        if (typeof count[j] === "undefined") {
+            count[j] = 0;
+        }
+
+        count[j]++;
     }
 
-    return newCodebook;
+    for (var k = 0; k < K; k++) {
+        if (typeof sum[k] !== "undefined" && typeof count[k] !== "undefined" && count[k] > 0) {
+            C[k] = sum[k].divideBy(count[k]);
+        }
+        C[k].size = 0;
+    }
+
+    return C;
 };
 
 /********************************************************************
@@ -358,16 +383,16 @@ KMeans.prototype.calculateCentroids = function (data, codebook, partition) {
 /**
  * Get the nearest vector to an input vector
  * @param x
- * @param vectors
+ * @param V
  * @returns {number}
  */
-KMeans.prototype.findNearestVector = function (x, vectors) {
-
+KMeans.prototype.findNearestVector = function (x, V) {
     var minDist = Infinity;
     var minIdx = 0;
+    var len = V.length;
 
-    for (var i = 0; i < vectors.length; i++) {
-        var d = this.distance(x, vectors[i], true);
+    for (var i = 0; i < len; i++) {
+        var d = this.distance(x, V[i], true);
         if (d < minDist) {
             minDist = d;
             minIdx = i;
@@ -382,7 +407,7 @@ KMeans.prototype.findNearestVector = function (x, vectors) {
  * @param vectors
  */
 KMeans.prototype.calculateMeanVector = function (vectors) {
-    var sumVector = vectors[0].slice(0, vectors[0].length);
+    var sumVector = vectors[0];
     var nVectors = vectors.length;
     for (var i = 1; i < vectors.length; i++) {
         sumVector = sumVector.addArray(vectors[i]);
@@ -425,16 +450,17 @@ KMeans.prototype.distance = function (x1, x2, squared) {
 
 /**
  * Calculate Sum of Squared Error / Total Squared Error
- * @param codebook
- * @param partition
+ * @param X
+ * @param C
+ * @param P
  * @returns {number}
  */
-KMeans.prototype.sumSquaredError = function (codebook, partition) {
+KMeans.prototype.sumSquaredError = function (X, C, P) {
     var tse = 0;
     for (var i = 0; i < this.N; i++) {
-        var j = partition[i];
-        if (codebook[j]) {
-            tse += this.distance(this.X[i], codebook[j], true);
+        var j = P[i];
+        if (C[j]) {
+            tse += this.distance(X[i], C[j], true);
         }
     }
     return tse;
@@ -442,19 +468,20 @@ KMeans.prototype.sumSquaredError = function (codebook, partition) {
 
 /**
  * Calculate Normalised Mean Square Error
- * @param codebook
- * @param partition
+ * @param X
+ * @param C
+ * @param P
  * @param tse
  * @returns {number}
  */
-KMeans.prototype.normalisedMeanSquareError = function (codebook, partition, tse) {
+KMeans.prototype.normalisedMeanSquareError = function (X, C, P, tse) {
 
     if (!tse) {
-        tse = this.sumSquaredError(codebook, partition);
+        tse = this.sumSquaredError(X, C, P);
     }
 
     var n = this.N;
-    var d = codebook[0].length;
+    var d = C[0].length;
 
     return tse / (n * d);
 
@@ -560,19 +587,6 @@ Array.prototype.getElementsByIndices = function (indices) {
         elements[i] = this[idx].slice(0, this[idx].length);
     }
     return elements;
-};
-
-/**
- * Count how many times a value occurs in
- * an array
- * @param x
- * @returns {Number}
- */
-Array.prototype.countVal = function (x) {
-    var el = this.filter(function (val) {
-        return val === x;
-    });
-    return el.length;
 };
 
 /**
@@ -704,6 +718,15 @@ Array.prototype.equals = function (array, strict) {
     }
     return true;
 };
+
+/**
+ * Clone an array
+ * @returns {Array.<*>}
+ */
+Array.prototype.clone = function () {
+    return this.slice(0, this.length);
+};
+
 
 /********************************************************************
  * SUPPORT FUNCTIONS ADDED TO JAVASCRIPT MATHEMATICS LIBRARY        *

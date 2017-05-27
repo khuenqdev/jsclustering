@@ -13,6 +13,7 @@
     <script type="text/javascript" src="algorithms/MeanShift.js"></script>
     <script type="text/javascript" src="algorithms/GeneticAlgorithm.js"></script>
     <script type="text/javascript" src="algorithms/KMeans.js"></script>
+    <script type="text/javascript" src="algorithms/PNN.js"></script>
 
     <!-- Entry point -->
     <script type="text/javascript" src="main.js"></script>
@@ -51,6 +52,7 @@
             <option value="0" selected="selected">Fast K-Means</option>
             <option value="1">Mean Shift</option>
             <option value="2">Genetic Algorithm</option>
+            <option value="3">Fast PNN</option>
         </select><br/><br/>
 
         <!-- Parameters -->
@@ -66,9 +68,9 @@
 
         <div id="ga_params" style="display:none;">
             <label for="population_size">Population Size (S)</label><br/>
-            <input name="population_size" id="population_size" type="text" value="10"/><br/>
+            <input name="population_size" id="population_size" type="text" value="45"/><br/>
             <label for="n_iterations">Number of iterations (T)</label><br/>
-            <input name="n_iterations" id="n_iterations" type="text" value="15"/>
+            <input name="n_iterations" id="n_iterations" type="text" value="50"/>
         </div>
 
         <br/>
