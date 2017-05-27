@@ -644,21 +644,29 @@ MeanShift.prototype.mergeVectors = function (X, C, P, Q, a, b) {
     C[a] = this.createCentroid(C[a], C[b]);
     C[a].size = tmpSize;
     this.joinPartitions(P, C, a, b);
-    this.fillEmptyPosition(C, Q, b, last);
+    this.fillEmptyPosition(C, P, Q, b, last);
     C.length--;
 };
 
 /**
  * Fill empty positions
  * @param C
+ * @param P
  * @param Q
  * @param b
  * @param last
  */
-MeanShift.prototype.fillEmptyPosition = function (C, Q, b, last) {
+MeanShift.prototype.fillEmptyPosition = function (C, P, Q, b, last) {
     if (b !== last) {
         C[b] = C[last].clone();
         C[b].size = C[last].size;
+
+        for (var j = 0; j < this.N; j++) {
+            if (P[j] === last) {
+                P[j] = b;
+            }
+        }
+
         Q[b] = {
             "nearest": Q[last].nearest,
             "distance": Q[last].distance,

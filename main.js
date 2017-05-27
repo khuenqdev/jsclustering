@@ -90,14 +90,14 @@ function execute() {
             if (legends.length === 0) {
                 svg.append("g")
                     .attr("class", "legend")
-                    .attr("transform", "translate(725,370)")
+                    .attr("transform", "translate(745,320)")
                     .attr("data-style-padding", 10)
                     .call(d3.legend);
             } else {
                 svg.selectAll("g[class='legend'").remove();
                 svg.append("g")
                     .attr("class", "legend")
-                    .attr("transform", "translate(725,370)")
+                    .attr("transform", "translate(745,320)")
                     .attr("data-style-padding", 10)
                     .call(d3.legend);
             }
