@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Clustering Algorithm Demo</title>
+    <title>JSClustering Demo</title>
 
     <!-- External libraries -->
     <script type="text/javascript" src="lib/jquery-3.2.0.min.js"></script>
@@ -25,6 +25,7 @@
 
 <div class="wrapper">
     <h1>JSClustering Demo</h1>
+    <div class="small"><a href="https://github.com/khuenqdev/jsclustering">Link to this project on GitHub</a></div>
     <fieldset class="field_group data_set">
         <legend>Data sets</legend>
 
@@ -86,8 +87,10 @@
     </fieldset>
     <fieldset id="results_panel" class="field_group result_graphic">
         <legend>Results</legend>
-        <div id="results" class="clustering_results">
+        <div class="svg-wrapper">
+            <div id="results" class="svg-results">
 
+            </div>
         </div>
     </fieldset>
 
@@ -112,7 +115,9 @@
         .append("svg")
         .attr("width", w)
         .attr("height", h)
-        .attr("class", "clustering_results");
+        .attr("preserveAspectRatio", "xMinYMin meet")
+        .attr("viewBox", "0 0 " + w + " " + h)
+        .classed("svg-content", true);
 
     /**
      * Update (show/hide) parameter fields

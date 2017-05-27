@@ -22,12 +22,12 @@ svg .axis text {
 
 .data_set {
     width: 38%;
-    height: 450px;
+    height: 500px;
 }
 
 .result_graphic {
-    width: 55%;
-    height: 450px;
+    width: 57%;
+    height: 500px;
 }
 
 .legend {
@@ -51,14 +51,15 @@ svg .axis text {
     padding: 10px;
     font-family: "Calibri", serif;
     font-size: 20px;
-    margin-top: -30%;
-    margin-left: 75%;
+    margin-top: -130%;
+    margin-left: 78%;
 }
 
 .footer {
     clear: both;
     width: 50%;
     margin: 0 auto;
+    text-align: center;
 }
 
 .author {
@@ -70,4 +71,33 @@ svg .axis text {
     margin-top: 5px;
     margin-left: 3px;
     width: 100px;
+}
+
+.small {
+    margin-top: 5px;
+    margin-bottom: 20px;
+    color: blueviolet;
+}
+
+.svg-wrapper {
+    display: inline-block;
+    position: relative;
+    width: 100%;
+    padding-bottom: 100%;
+    vertical-align: top;
+    overflow: hidden;
+}
+
+.svg-content {
+    display: inline-block;
+    float: left;
+    top: 0;
+    left: 0;
+}
+
+.svg-results {
+    display: inline-block;
+    float: left;
+    margin-left: -3%;
+    margin-top: 0;
 }

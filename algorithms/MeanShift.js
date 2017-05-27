@@ -214,14 +214,12 @@ MeanShift.prototype.getInitialCodebook = function (X) {
  */
 MeanShift.prototype.determineKernelRadius = function (X) {
     var N = this.N;
-    var D = X[0].length;
-    var k = Math.floor(Math.sqrt(N) / D) + 1;
+    var k = Math.floor(Math.sqrt(N));
 
     var cb = this.generateRandomCodebook(X, k);
     var pt = this.getOptimalPartition(X, cb);
 
     var totalAvgDist = 0;
-
     for (var i = 0; i < this.N; i++) {
         var j = pt[i];
         var d = this.distance(X[i], cb[j], true);
@@ -351,8 +349,8 @@ MeanShift.prototype.tuningSolution = function(X, M, C, P) {
         }
 
     } else {
-        C = this.removeLowDensityClusters(C);
-        P = this.getOptimalPartition(X, C);
+        //C = this.removeLowDensityClusters(C);
+        //P = this.getOptimalPartition(X, C);
     }
 
     return {

@@ -219,20 +219,16 @@ var dataset = [
     ["birch2", {"algorithm_repeat": 100}]
 ];
 
-var al = [
-    AL_GA,
-    AL_MS
-];
-
 fs.truncateSync("logs.txt");
 fs.truncateSync("results.txt");
 
-for (var i = 0; i < al.length; i++) {
-    for (var j = 0; j < dataset.length; j++) {
-        // Limit birch iterations for mean shift
-        if (al[i] === AL_MS && (dataset[j][0] === "birch1" || dataset[j][0] === "birch2")) {
-            dataset[j][1].algorithm_repeat = 3;
-        }
-        execute(al[i], dataset[j][0], dataset[j][1]);
-    }
+// Mean Shift with cluster enforcing
+for (var j = 0; j < dataset.length; j++) {
+    execute(AL_MS, dataset[j][0], dataset[j][1]);
+}
+
+// Mean Shift without cluster enforcing
+for (var k = 0; k < dataset.length; k++) {
+    dataset[k][1].no_of_clusters = Infinity;
+    execute(AL_MS, dataset[k][0], dataset[k][1]);
 }
