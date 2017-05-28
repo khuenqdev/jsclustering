@@ -152,6 +152,7 @@ MeanShift.prototype.stopIter = 0;
  * @type {number}
  */
 MeanShift.prototype.maxIter = 50;
+MeanShift.prototype.subSampling = 0.0625;
 
 /**
  * Constructor of the algorithm class
@@ -187,16 +188,34 @@ MeanShift.prototype.execute = function () {
         this.R = this.determineKernelRadius(this.X);
     }
 
-    var C = this.getOptimalCodebook(this.X, this.R);
-    var P = this.getOptimalPartition(this.X, C);
+    // Initialize the codebook
+    var C = [];
 
+    // Break the data to smaller set when it is too large
+    if (this.N > 10000) {
+        var size = 0;
+        var increment = Math.floor(this.N * this.subSampling) - 1;
+        var stopIterMultiSubset = 0;
+        while (size < this.N) {
+            var lastSliceLength = size;
+            size = size + increment;
+            var data = this.X.slice(lastSliceLength, size);
+            C = C.concat(this.getOptimalCodebook(data, this.R));
+            stopIterMultiSubset += this.stopIter;
+        }
+        this.stopIter = stopIterMultiSubset;
+    } else {
+        C = this.getOptimalCodebook(this.X, this.R);
+    }
+
+    var P = this.getOptimalPartition(this.X, C);
     var tuned = this.tuningSolution(this.X, this.M, C, P);
     C = tuned.codebook;
     P = tuned.partition;
-
     var tse = this.sumSquaredError(this.X, C, P);
     this.storeFinalSolution(C, P, tse);
 };
+
 
 /********************************************************************
  * INITIALIZATION                                                   *
@@ -220,15 +239,15 @@ MeanShift.prototype.getInitialCodebook = function (X) {
  * @returns {number}
  */
 MeanShift.prototype.determineKernelRadius = function (X) {
-    var N = this.N;
+    var N = X.length;
     var D = X[0].length;
-    var k = Math.floor(Math.sqrt(N) / D) + D;
+    var k = Math.floor(Math.sqrt(N) / D) + (D - 1);
 
     var cb = this.generateRandomCodebook(X, k);
     var pt = this.getOptimalPartition(X, cb);
 
     var totalAvgDist = 0;
-    for (var i = 0; i < this.N; i++) {
+    for (var i = 0; i < N; i++) {
         var j = pt[i];
         var d = this.distance(X[i], cb[j], true);
         if (cb[j].size > 0) {
@@ -252,7 +271,6 @@ MeanShift.prototype.getOptimalCodebook = function (X, R) {
     while (!optimize && iterations < this.maxIter) {
         iterations++;
         this.stopIter = iterations;
-
         var CPrev = C.clone();
         C = this.updateCentroids(X, C, R);
         if (C.equals(CPrev)) {
@@ -271,7 +289,8 @@ MeanShift.prototype.getOptimalCodebook = function (X, R) {
  */
 MeanShift.prototype.getOptimalPartition = function (X, C) {
     var P = [];
-    for (var i = 0; i < this.N; i++) {
+    var N = X.length;
+    for (var i = 0; i < N; i++) {
         var j = this.findNearestVector(X[i], C);
         P[i] = j;
         C[j].size += 1;
@@ -303,13 +322,13 @@ MeanShift.prototype.storeFinalSolution = function (C, P, tse) {
  * @returns {Array}
  */
 MeanShift.prototype.updateCentroids = function (X, C, R) {
-    var CNew = [], len = C.length;
+    var CNew = [], len = C.length, N = X.length;
 
     for (var i = 0; i < len; i++) {
 
         var withinRadius = [];
 
-        for (var j = 0; j < this.N; j++) {
+        for (var j = 0; j < N; j++) {
             // Calculate distance between current code vector and all vectors in the data set
             var d = this.distance(C[i], X[j], true);
 
@@ -410,8 +429,9 @@ MeanShift.prototype.splitCentroids = function (X, M, C) {
 MeanShift.prototype.getFurthestVector = function (x, X) {
     var maxDist = 0;
     var maxIdx = 0;
+    var N = X.length;
 
-    for (var i = 0; i < this.N; i++) {
+    for (var i = 0; i < N; i++) {
         var d = this.distance(x, X[i], true);
         if (d > maxDist) {
             maxDist = d;
@@ -478,7 +498,7 @@ MeanShift.prototype.areSameCodebooks = function (C1, C2) {
  */
 MeanShift.prototype.generateRandomCodebook = function (X, M) {
     // Get random vector indices
-    var indices = Math.randIntList(0, this.N - 1, M, undefined, true);
+    var indices = Math.randIntList(0, X.length - 1, M, undefined, true);
 
     // Collect random vectors
     var C = [];
@@ -650,25 +670,26 @@ MeanShift.prototype.mergeVectors = function (X, C, P, Q, a, b) {
     var tmpSize = C[a].size;
     C[a] = this.createCentroid(C[a], C[b]);
     C[a].size = tmpSize;
-    this.joinPartitions(P, C, a, b);
-    this.fillEmptyPosition(C, P, Q, b, last);
+    this.joinPartitions(X, P, C, a, b);
+    this.fillEmptyPosition(X, C, P, Q, b, last);
     C.length--;
 };
 
 /**
  * Fill empty positions
+ * @param X
  * @param C
  * @param P
  * @param Q
  * @param b
  * @param last
  */
-MeanShift.prototype.fillEmptyPosition = function (C, P, Q, b, last) {
+MeanShift.prototype.fillEmptyPosition = function (X, C, P, Q, b, last) {
     if (b !== last) {
         C[b] = C[last].clone();
         C[b].size = C[last].size;
 
-        for (var j = 0; j < this.N; j++) {
+        for (var j = 0; j < X.length; j++) {
             if (P[j] === last) {
                 P[j] = b;
             }
@@ -774,13 +795,15 @@ MeanShift.prototype.mergeDistortion = function (C1, C2) {
 
 /**
  * Join two partitions together
+ * @param X
  * @param P
  * @param C
  * @param a
  * @param b
  */
-MeanShift.prototype.joinPartitions = function (P, C, a, b) {
-    for (var i = 0; i < this.N; i++) {
+MeanShift.prototype.joinPartitions = function (X, P, C, a, b) {
+    var N = X.length;
+    for (var i = 0; i < N; i++) {
         if (P[i] === b) {
             P[i] = a;
         }
@@ -800,8 +823,8 @@ MeanShift.prototype.joinPartitions = function (P, C, a, b) {
  * @returns {number}
  */
 MeanShift.prototype.sumSquaredError = function (X, C, P) {
-    var tse = 0;
-    for (var i = 0; i < this.N; i++) {
+    var tse = 0, N = X.length;
+    for (var i = 0; i < N; i++) {
         var j = P[i];
         if (C[j]) {
             tse += this.distance(X[i], C[j], true);
@@ -824,7 +847,7 @@ MeanShift.prototype.normalisedMeanSquareError = function (X, C, P, tse) {
         tse = this.sumSquaredError(C, P);
     }
 
-    var n = this.N;
+    var n = X.length;
     var d = C[0].length;
 
     return tse / (n * d);

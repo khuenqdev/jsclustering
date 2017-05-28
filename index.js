@@ -218,8 +218,8 @@ var dataset = [
     ["a1", {"algorithm_repeat": 100}],
     ["a2", {"algorithm_repeat": 100}],
     ["a3", {"algorithm_repeat": 100}],
-    ["birch1", {"algorithm_repeat": 100}],
-    ["birch2", {"algorithm_repeat": 100}]
+    ["birch1", {"algorithm_repeat": 50}],
+    ["birch2", {"algorithm_repeat": 50}]
 ];
 
 fs.truncateSync("logs.txt");
