@@ -147,6 +147,13 @@ MeanShift.prototype.ci = Infinity;
 MeanShift.prototype.stopIter = 0;
 
 /**
+ * Max number of iterations, prevent no convergence
+ * when determine radius automatically
+ * @type {number}
+ */
+MeanShift.prototype.maxIter = 50;
+
+/**
  * Constructor of the algorithm class
  * @param X Input data set of vectors
  * @param R Kernel radius
@@ -214,7 +221,8 @@ MeanShift.prototype.getInitialCodebook = function (X) {
  */
 MeanShift.prototype.determineKernelRadius = function (X) {
     var N = this.N;
-    var k = Math.floor(Math.sqrt(N));
+    var D = X[0].length;
+    var k = Math.floor(Math.sqrt(N) / D) + D;
 
     var cb = this.generateRandomCodebook(X, k);
     var pt = this.getOptimalPartition(X, cb);
@@ -241,14 +249,13 @@ MeanShift.prototype.getOptimalCodebook = function (X, R) {
     var C = this.getInitialCodebook(X);
     var optimize = false, iterations = 0;
 
-    while (!optimize) {
+    while (!optimize && iterations < this.maxIter) {
         iterations++;
         this.stopIter = iterations;
 
         var CPrev = C.clone();
         C = this.updateCentroids(X, C, R);
-
-        if (C.length === CPrev.length && this.areSameCodebooks(C, CPrev)) {
+        if (C.equals(CPrev)) {
             optimize = true;
         }
     }
@@ -349,8 +356,8 @@ MeanShift.prototype.tuningSolution = function(X, M, C, P) {
         }
 
     } else {
-        //C = this.removeLowDensityClusters(C);
-        //P = this.getOptimalPartition(X, C);
+        C = this.removeLowDensityClusters(C);
+        P = this.getOptimalPartition(X, C);
     }
 
     return {
@@ -767,7 +774,6 @@ MeanShift.prototype.mergeDistortion = function (C1, C2) {
 
 /**
  * Join two partitions together
- * @param X
  * @param P
  * @param C
  * @param a

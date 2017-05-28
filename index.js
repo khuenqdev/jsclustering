@@ -65,6 +65,7 @@ function execute(algorithm, datafile, params) {
     var executionTimes = [];
     var iterations = [];
     var radius = [];
+    var nClustersCol = [];
 
     switch (algorithm) {
         case AL_MS:
@@ -106,6 +107,7 @@ function execute(algorithm, datafile, params) {
         nClusters += bot.centroids.length;
         sseArr.push(sse);
         iterations.push(bot.stopIter);
+        nClustersCol.push(nClusters);
 
         if (typeof bot.R !== "undefined" && bot.R !== Infinity && bot.R > 0) {
             radius.push(bot.R);
@@ -147,10 +149,11 @@ function execute(algorithm, datafile, params) {
         "Success: " + ((success / params.algorithm_repeat) * 100) + "%\n" +
         "SSEs: [" + sseArr.toString() + "]\n" +
         "Stop Iterations: [" + iterations.toString() + "]\n" +
-        "Times: [" + executionTimes.toString() + "]\n";
+        "Times: [" + executionTimes.toString() + "]\n" +
+        "Clusters: [" + nClustersCol.toString() + "]\n";
 
     if (radius.length > 0) {
-        resultTexts += "Radius: [" + radius.toString() + "]";
+        resultTexts += "Radius: [" + radius.toString() + "]\n";
     }
 
     resultTexts += "--------------------------------------------------\n";
@@ -222,10 +225,10 @@ var dataset = [
 fs.truncateSync("logs.txt");
 fs.truncateSync("results.txt");
 
-// Mean Shift with cluster enforcing
+/*// Mean Shift with cluster enforcing
 for (var j = 0; j < dataset.length; j++) {
     execute(AL_MS, dataset[j][0], dataset[j][1]);
-}
+}*/
 
 // Mean Shift without cluster enforcing
 for (var k = 0; k < dataset.length; k++) {
