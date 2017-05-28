@@ -105,9 +105,9 @@ function execute(algorithm, datafile, params) {
         ci += bot.ci;
         stopIter += bot.stopIter;
         nClusters += bot.centroids.length;
-        sseArr.push(sse);
+        sseArr.push(bot.tse);
         iterations.push(bot.stopIter);
-        nClustersCol.push(nClusters);
+        nClustersCol.push(bot.centroids.length);
 
         if (typeof bot.R !== "undefined" && bot.R !== Infinity && bot.R > 0) {
             radius.push(bot.R);
@@ -218,12 +218,17 @@ var dataset = [
     ["a1", {"algorithm_repeat": 100}],
     ["a2", {"algorithm_repeat": 100}],
     ["a3", {"algorithm_repeat": 100}],
-    ["birch1", {"algorithm_repeat": 50}],
-    ["birch2", {"algorithm_repeat": 50}]
+    ["birch1", {"algorithm_repeat": 100}],
+    ["birch2", {"algorithm_repeat": 100}]
 ];
 
 fs.truncateSync("logs.txt");
 fs.truncateSync("results.txt");
+
+// GA with cluster enforcing
+for (var x = 0; x < dataset.length; x++) {
+    execute(AL_MS, dataset[x][0], dataset[x][1]);
+}
 
 // Mean Shift with cluster enforcing
 for (var j = 0; j < dataset.length; j++) {

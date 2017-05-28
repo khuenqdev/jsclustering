@@ -196,14 +196,16 @@ MeanShift.prototype.execute = function () {
         var size = 0;
         var increment = Math.floor(this.N * this.subSampling) - 1;
         var stopIterMultiSubset = 0;
+        var part = 0;
         while (size < this.N) {
+            part++;
             var lastSliceLength = size;
             size = size + increment;
             var data = this.X.slice(lastSliceLength, size);
             C = C.concat(this.getOptimalCodebook(data, this.R));
             stopIterMultiSubset += this.stopIter;
         }
-        this.stopIter = stopIterMultiSubset;
+        this.stopIter = stopIterMultiSubset / part;
     } else {
         C = this.getOptimalCodebook(this.X, this.R);
     }
