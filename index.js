@@ -227,7 +227,7 @@ fs.truncateSync("results.txt");
 
 // GA with cluster enforcing
 for (var x = 0; x < dataset.length; x++) {
-    execute(AL_MS, dataset[x][0], dataset[x][1]);
+    execute(AL_GA, dataset[x][0], dataset[x][1]);
 }
 
 // Mean Shift with cluster enforcing
