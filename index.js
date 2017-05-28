@@ -225,10 +225,10 @@ var dataset = [
 fs.truncateSync("logs.txt");
 fs.truncateSync("results.txt");
 
-/*// Mean Shift with cluster enforcing
+// Mean Shift with cluster enforcing
 for (var j = 0; j < dataset.length; j++) {
     execute(AL_MS, dataset[j][0], dataset[j][1]);
-}*/
+}
 
 // Mean Shift without cluster enforcing
 for (var k = 0; k < dataset.length; k++) {
