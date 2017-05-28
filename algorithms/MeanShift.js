@@ -376,10 +376,10 @@ MeanShift.prototype.tuningSolution = function(X, M, C, P) {
             P = this.getOptimalPartition(X, C);
         }
 
-    } else {
+    } /*else {
         C = this.removeLowDensityClusters(C);
         P = this.getOptimalPartition(X, C);
-    }
+    }*/
 
     return {
         "codebook": C,
