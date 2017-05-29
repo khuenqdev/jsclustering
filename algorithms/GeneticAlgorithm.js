@@ -242,7 +242,7 @@ GeneticAlgorithm.prototype.init = function () {
 GeneticAlgorithm.prototype.computeCrossSetSize = function (S) {
     var s = 0;
 
-    while (s * (s + 1) / 2 < S) {
+    while (s * (s - 1) / 2 < S) {
         s++;
     }
 

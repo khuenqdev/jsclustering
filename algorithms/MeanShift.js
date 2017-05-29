@@ -846,7 +846,7 @@ MeanShift.prototype.sumSquaredError = function (X, C, P) {
 MeanShift.prototype.normalisedMeanSquareError = function (X, C, P, tse) {
 
     if (!tse) {
-        tse = this.sumSquaredError(C, P);
+        tse = this.sumSquaredError(X, C, P);
     }
 
     var n = X.length;

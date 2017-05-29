@@ -44,10 +44,10 @@ function execute(algorithm, datafile, params) {
         params.km_max_iter = 100;
     }
     if (typeof params.ga_population === "undefined") {
-        params.ga_population = 45;
+        params.ga_population = 5;
     }
     if (typeof params.ga_max_iter === "undefined") {
-        params.ga_max_iter = 50;
+        params.ga_max_iter = 10;
     }
 
     var sse = 0;
@@ -230,7 +230,7 @@ for (var x = 0; x < dataset.length; x++) {
     execute(AL_GA, dataset[x][0], dataset[x][1]);
 }
 
-// Mean Shift with cluster enforcing
+/*// Mean Shift with cluster enforcing
 for (var j = 0; j < dataset.length; j++) {
     execute(AL_MS, dataset[j][0], dataset[j][1]);
 }
@@ -239,4 +239,4 @@ for (var j = 0; j < dataset.length; j++) {
 for (var k = 0; k < dataset.length; k++) {
     dataset[k][1].no_of_clusters = Infinity;
     execute(AL_MS, dataset[k][0], dataset[k][1]);
-}
+}*/
